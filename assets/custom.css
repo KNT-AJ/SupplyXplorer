@@ -1,0 +1,311 @@
+/* Refined KNT-inspired color palette for SupplyXplorer */
+:root {
+    /* Primary KNT Colors */
+    --knt-primary: #1e3a8a;      /* Deep Navy Blue */
+    --knt-primary-light: #3b5bdb; /* Lighter Navy */
+    --knt-primary-dark: #1e1b4b;  /* Darker Navy */
+    
+    /* Secondary KNT Colors */
+    --knt-secondary: #f59e0b;     /* Warm Gold */
+    --knt-secondary-light: #fbbf24; /* Light Gold */
+    --knt-secondary-dark: #d97706;  /* Dark Gold */
+    
+    /* Neutral Colors */
+    --knt-white: #ffffff;
+    --knt-gray-50: #f9fafb;
+    --knt-gray-100: #f3f4f6;
+    --knt-gray-200: #e5e7eb;
+    --knt-gray-300: #d1d5db;
+    --knt-gray-400: #9ca3af;
+    --knt-gray-500: #6b7280;
+    --knt-gray-600: #4b5563;
+    --knt-gray-700: #374151;
+    --knt-gray-800: #1f2937;
+    --knt-gray-900: #111827;
+    
+    /* Status Colors */
+    --knt-success: #10b981;       /* Green */
+    --knt-success-light: #34d399;
+    --knt-warning: #f59e0b;       /* Orange */
+    --knt-warning-light: #fbbf24;
+    --knt-danger: #ef4444;        /* Red */
+    --knt-danger-light: #f87171;
+    --knt-info: #3b82f6;          /* Blue */
+    --knt-info-light: #60a5fa;
+}
+
+/* Custom styles for SupplyXplorer */
+.logo-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.logo-container img {
+    max-height: 40px;
+    width: auto;
+    object-fit: contain;
+}
+
+/* Header styling with refined KNT colors */
+.header-row {
+    border-bottom: 3px solid var(--knt-primary);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    background: linear-gradient(135deg, var(--knt-white) 0%, var(--knt-gray-50) 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(30, 58, 138, 0.1);
+}
+
+/* Update header text colors */
+.header-row h1 {
+    color: var(--knt-primary) !important;
+    font-weight: 700;
+    font-size: 2.25rem;
+    letter-spacing: -0.025em;
+}
+
+.header-row p {
+    color: var(--knt-gray-600) !important;
+    font-weight: 500;
+}
+
+/* Upload area styling with refined colors */
+.upload-area {
+    border: 2px dashed var(--knt-primary) !important;
+    border-radius: 12px !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background-color: var(--knt-white);
+    padding: 2rem;
+}
+
+.upload-area:hover {
+    border-color: var(--knt-secondary) !important;
+    background-color: var(--knt-gray-50);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -3px rgba(30, 58, 138, 0.1), 0 4px 6px -2px rgba(30, 58, 138, 0.05);
+}
+
+/* Metrics cards with refined KNT colors */
+.metrics-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid var(--knt-gray-200);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--knt-white);
+}
+
+.metrics-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(30, 58, 138, 0.1), 0 10px 10px -5px rgba(30, 58, 138, 0.04);
+    border-color: var(--knt-primary-light);
+}
+
+.metrics-card .card-body {
+    background: linear-gradient(135deg, var(--knt-white) 0%, var(--knt-gray-50) 100%);
+    padding: 1.5rem;
+}
+
+/* Custom button styling with refined colors */
+.btn-primary {
+    background: linear-gradient(135deg, var(--knt-primary) 0%, var(--knt-primary-light) 100%) !important;
+    border: none !important;
+    color: var(--knt-white) !important;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, var(--knt-primary-dark) 0%, var(--knt-primary) 100%) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 25px -3px rgba(30, 58, 138, 0.3), 0 4px 6px -2px rgba(30, 58, 138, 0.1);
+}
+
+/* Tab styling with refined colors */
+.nav-tabs {
+    border-bottom: 2px solid var(--knt-gray-200);
+}
+
+.nav-tabs .nav-link {
+    color: var(--knt-gray-600);
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-weight: 500;
+    padding: 1rem 1.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--knt-primary) !important;
+    background-color: transparent !important;
+    border-bottom: 3px solid var(--knt-secondary) !important;
+    font-weight: 600;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--knt-primary);
+    border-bottom: 3px solid var(--knt-secondary-light);
+    background-color: var(--knt-gray-50);
+}
+
+/* Status messages with refined colors */
+.upload-success {
+    color: var(--knt-success) !important;
+    font-weight: 600;
+}
+
+.upload-warning {
+    color: var(--knt-warning) !important;
+    font-weight: 600;
+}
+
+.upload-error {
+    color: var(--knt-danger) !important;
+    font-weight: 600;
+}
+
+/* Table styling with refined colors */
+.dash-table-container {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(30, 58, 138, 0.1);
+}
+
+.dash-table-container .dash-spreadsheet-container {
+    border: 1px solid var(--knt-gray-200);
+}
+
+/* Chart styling with refined colors */
+.js-plotly-plot .plotly .main-svg {
+    border-radius: 12px;
+}
+
+/* Container styling */
+.container-fluid {
+    background-color: var(--knt-gray-50);
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+/* Section headers with refined styling */
+h4 {
+    color: var(--knt-primary) !important;
+    font-weight: 700;
+    border-left: 4px solid var(--knt-secondary);
+    padding-left: 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+}
+
+/* Date picker styling with refined colors */
+.DateInput_input {
+    border: 2px solid var(--knt-gray-300) !important;
+    border-radius: 8px !important;
+    color: var(--knt-gray-800) !important;
+    padding: 0.75rem;
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.DateInput_input:focus {
+    border-color: var(--knt-secondary) !important;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1) !important;
+    outline: none;
+}
+
+/* Card styling improvements */
+.card {
+    border: 1px solid var(--knt-gray-200);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px 0 rgba(30, 58, 138, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card:hover {
+    box-shadow: 0 10px 25px -3px rgba(30, 58, 138, 0.1), 0 4px 6px -2px rgba(30, 58, 138, 0.05);
+}
+
+/* Form controls styling */
+.form-control {
+    border: 2px solid var(--knt-gray-300);
+    border-radius: 8px;
+    padding: 0.75rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-control:focus {
+    border-color: var(--knt-secondary);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+/* Alert styling */
+.alert {
+    border-radius: 8px;
+    border: none;
+    font-weight: 500;
+}
+
+.alert-success {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--knt-success);
+}
+
+.alert-warning {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: var(--knt-warning);
+}
+
+.alert-danger {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--knt-danger);
+}
+
+/* Badge styling */
+.badge {
+    font-weight: 600;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+}
+
+.badge-primary {
+    background-color: var(--knt-primary);
+    color: var(--knt-white);
+}
+
+.badge-secondary {
+    background-color: var(--knt-secondary);
+    color: var(--knt-white);
+}
+
+/* Progress bar styling */
+.progress {
+    background-color: var(--knt-gray-200);
+    border-radius: 8px;
+    height: 0.75rem;
+}
+
+.progress-bar {
+    background: linear-gradient(135deg, var(--knt-primary) 0%, var(--knt-primary-light) 100%);
+    border-radius: 8px;
+}
+
+/* Modal styling */
+.modal-content {
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 25px 50px -12px rgba(30, 58, 138, 0.25);
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--knt-gray-200);
+    background-color: var(--knt-gray-50);
+    border-radius: 12px 12px 0 0;
+}
+
+.modal-footer {
+    border-top: 1px solid var(--knt-gray-200);
+    background-color: var(--knt-gray-50);
+    border-radius: 0 0 12px 12px;
+} 
