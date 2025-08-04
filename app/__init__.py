@@ -1,1 +1,1 @@
-# SupplyXplorer Application Package 
+# SupplyXplorer Application Package

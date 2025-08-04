@@ -28,4 +28,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
 # Start both API and dashboard
-CMD ["sh", "-c", "python main.py & python app/dashboard.py & wait"] 
+CMD ["sh", "-c", "python main.py & python app/dashboard.py & wait"]

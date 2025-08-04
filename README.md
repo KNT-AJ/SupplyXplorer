@@ -234,4 +234,4 @@ For issues and questions:
 
 ---
 
-**SupplyXplorer** - Making supply chain planning accessible and data-driven. 
+**SupplyXplorer** - Making supply chain planning accessible and data-driven.

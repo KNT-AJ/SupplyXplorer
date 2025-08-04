@@ -115,4 +115,4 @@ class Order(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    part = relationship("Part", back_populates="orders") 
+    part = relationship("Part", back_populates="orders")
