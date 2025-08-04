@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"  # API
+      - "8050:8050"  # Dashboard
+    environment:
+      - DATABASE_URL=postgresql://supplyxplorer:password@db:5432/supplyxplorer
+    depends_on:
+      - db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=supplyxplorer
+      - POSTGRES_USER=supplyxplorer
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
