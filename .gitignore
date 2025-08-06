@@ -68,5 +68,21 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Test files (can be regenerated)
+test_*.py
+demo_*.py
+*_test.py
+
+# Development documentation (can be recreated)
+*_SUMMARY.md
+*_INTEGRATION*.md
+API_ENHANCEMENTS.md
+
+# Development scripts (temporary utilities)
+fix_*.py
+verify_*.py
+reset_*.py
+create_tables.py
+
 # Jupyter Notebook
 .ipynb_checkpoints

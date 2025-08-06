@@ -1,0 +1,11 @@
+part_id,part_name,current_stock,minimum_stock,maximum_stock,unit_cost,supplier_name,location,notes
+PART001,Component A,150,50,500,10.50,ABC Supplier,Warehouse A,High demand item
+PART002,Component B,25,30,200,25.75,XYZ Manufacturing,Warehouse B,Low stock - reorder soon
+PART003,Component C,300,100,1000,5.25,DEF Components,Warehouse A,Standard part
+PART004,Component D,75,25,300,45.00,GHI Industries,Warehouse C,Critical component
+PART005,Component E,0,20,150,12.80,JKL Suppliers,Warehouse B,Out of stock
+PART006,Component F,200,75,400,8.90,MNO Parts,Warehouse A,Backup supplier available
+PART007,Component G,50,40,250,18.50,PQR Manufacturing,Warehouse C,Custom part
+PART008,Component H,125,60,350,22.00,STU Components,Warehouse B,Quality certified
+PART009,Component I,10,15,100,55.00,VWX Industries,Warehouse A,Expensive specialty part
+PART010,Component J,180,80,500,15.25,YZ Suppliers,Warehouse C,Bulk discount available

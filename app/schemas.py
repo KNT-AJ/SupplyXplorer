@@ -50,6 +50,20 @@ class LeadTimeBase(BaseModel):
     part_id: str = Field(..., description="Part identifier")
     days: int = Field(..., description="Lead time in days")
 
+class InventoryBase(BaseModel):
+    part_id: str = Field(..., description="Part identifier")
+    part_name: str = Field(..., description="Part name/description")
+    current_stock: int = Field(..., description="Current stock level")
+    minimum_stock: int = Field(default=0, description="Minimum stock level")
+    maximum_stock: Optional[int] = Field(None, description="Maximum stock level")
+    unit_cost: float = Field(default=0.0, description="Unit cost")
+    total_value: float = Field(default=0.0, description="Total inventory value")
+    supplier_id: Optional[str] = Field(None, description="Supplier identifier")
+    supplier_name: Optional[str] = Field(None, description="Supplier name")
+    location: Optional[str] = Field(None, description="Storage location")
+    last_restock_date: Optional[datetime] = Field(None, description="Last restock date")
+    notes: Optional[str] = Field(None, description="Additional notes")
+
 # Create schemas
 class ProductCreate(ProductBase):
     pass
@@ -67,6 +81,9 @@ class ForecastCreate(ForecastBase):
     pass
 
 class LeadTimeCreate(LeadTimeBase):
+    pass
+
+class InventoryCreate(InventoryBase):
     pass
 
 # Response schemas
@@ -115,17 +132,38 @@ class LeadTime(LeadTimeBase):
     class Config:
         from_attributes = True
 
+class Inventory(InventoryBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 # Planning results schemas
 class OrderSchedule(BaseModel):
     part_id: str
     part_name: str
     part_description: str
+    supplier_id: Optional[str] = None
+    supplier_name: Optional[str] = None
     order_date: datetime
     qty: int
     payment_date: datetime
     unit_cost: float
     total_cost: float
     status: str = "planned"
+    days_until_order: int
+    days_until_payment: int
+
+class SupplierOrderSummary(BaseModel):
+    supplier_id: Optional[str] = None
+    supplier_name: Optional[str] = None
+    order_date: datetime
+    payment_date: datetime
+    total_parts: int
+    total_cost: float
+    parts: List[str]  # List of part names
     days_until_order: int
     days_until_payment: int
 
@@ -146,13 +184,20 @@ class KeyMetrics(BaseModel):
 
 # Bulk upload schemas
 class ForecastUpload(BaseModel):
-    forecasts: List[ForecastCreate]
+    filename: str
+    message: str
 
 class BOMUpload(BaseModel):
-    bom_items: List[BOMCreate]
+    filename: str
+    message: str
 
 class LeadTimeUpload(BaseModel):
-    lead_times: List[LeadTimeCreate]
+    filename: str
+    message: str
+
+class InventoryUpload(BaseModel):
+    filename: str
+    message: str
 
 # K&T BOM specific schemas
 class KTBOMItem(BaseModel):

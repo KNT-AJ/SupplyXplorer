@@ -3,38 +3,65 @@ import sys
 import time
 import threading
 import os
-from pathlib import Path
 
-def run_backend():
-    """Run the FastAPI backend server"""
-    print("Starting FastAPI backend server on http://localhost:8000")
-    subprocess.run([sys.executable, "main.py"])
-
-def run_frontend():
-    """Run the Dash frontend server"""
-    print("Starting Dash frontend server on http://localhost:8050")
-    subprocess.run([sys.executable, "app/dashboard.py"])
+def run_server(command, name, cwd):
+    """Generic function to run a server command."""
+    print(f"Starting {name} server...")
+    try:
+        # Ensure the python executable from the venv is used
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+        # Print output in real-time
+        for line in iter(process.stdout.readline, ''):
+            print(f"[{name}] {line.strip()}")
+        process.stdout.close()
+        return_code = process.wait()
+        if return_code:
+            raise subprocess.CalledProcessError(return_code, command)
+    except Exception as e:
+        print(f"An error occurred while running {name}: {e}")
 
 def main():
+    # Hardcode the project directory and python executable for reliability
+    project_dir = '/Users/ajdavis/GitHub/SupplyXplorer'
+    python_executable = '/Users/ajdavis/GitHub/SupplyXplorer/supplyxplorer_env/bin/python'  # Use virtual environment python
+    
+    backend_command = [python_executable, 'main.py']
+    frontend_command = [python_executable, 'app/dashboard.py']
+
     print("SupplyXplorer - Starting both backend and frontend servers...")
+    print(f"Using Python from: {python_executable}")
     print("Backend will be available at: http://localhost:8000")
     print("Frontend will be available at: http://localhost:8050")
-    print("Press Ctrl+C to stop both servers")
+    print("Press Ctrl+C to stop both servers.")
     print("-" * 60)
-    
-    # Start backend in a separate thread
-    backend_thread = threading.Thread(target=run_backend, daemon=True)
-    backend_thread.start()
-    
-    # Wait a moment for backend to start
-    time.sleep(3)
-    
-    # Start frontend in main thread
-    run_frontend()
 
-if __name__ == "__main__":
+    # Run both servers in daemon threads
+    backend_thread = threading.Thread(target=run_server, args=(backend_command, "Backend", project_dir), daemon=True)
+    frontend_thread = threading.Thread(target=run_server, args=(frontend_command, "Frontend", project_dir), daemon=True)
+
+    backend_thread.start()
+    print("Waiting for backend to initialize...")
+    time.sleep(5)  # Give backend a moment to start up before starting frontend
+
+    frontend_thread.start()
+
+    # Keep the main thread alive to monitor the server threads
     try:
-        main()
+        # We join the threads to keep the script running
+        backend_thread.join()
+        frontend_thread.join()
     except KeyboardInterrupt:
         print("\nShutting down servers...")
+        # Daemon threads will exit automatically when the main program exits
         sys.exit(0)
+
+if __name__ == "__main__":
+    main()
