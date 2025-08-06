@@ -1,11 +1,20 @@
 part_id,part_name,current_stock,minimum_stock,maximum_stock,unit_cost,supplier_name,location,notes
-PART001,Component A,150,50,500,10.50,ABC Supplier,Warehouse A,High demand item
-PART002,Component B,25,30,200,25.75,XYZ Manufacturing,Warehouse B,Low stock - reorder soon
-PART003,Component C,300,100,1000,5.25,DEF Components,Warehouse A,Standard part
-PART004,Component D,75,25,300,45.00,GHI Industries,Warehouse C,Critical component
-PART005,Component E,0,20,150,12.80,JKL Suppliers,Warehouse B,Out of stock
-PART006,Component F,200,75,400,8.90,MNO Parts,Warehouse A,Backup supplier available
-PART007,Component G,50,40,250,18.50,PQR Manufacturing,Warehouse C,Custom part
-PART008,Component H,125,60,350,22.00,STU Components,Warehouse B,Quality certified
-PART009,Component I,10,15,100,55.00,VWX Industries,Warehouse A,Expensive specialty part
-PART010,Component J,180,80,500,15.25,YZ Suppliers,Warehouse C,Bulk discount available
+TC-HP-1.5,TC High Pressure 1.5,45,20,100,2.72,TriClover Supply Co,Warehouse A,TriClover fitting
+TC-BV-1.5,TC Butterfly Valve Squeeze Blue 1.5,8,5,25,34.49,TriClover Supply Co,Warehouse A,Specialized valve
+TC-GAS-1.5,TC Gasket 1.5 Blue,120,50,300,0.23,TriClover Supply Co,Warehouse A,Consumable gasket
+TC-PG-120,TC Pressure Gauge 0-120 psi 1.5,3,2,10,45.00,Pressure Instruments Inc,Warehouse B,Pressure monitoring
+TC-SP-24,TC Spool 1.5 x 24,2,1,8,14.00,TriClover Supply Co,Warehouse A,Custom length spool
+TC-EL-90,TC Elbow 90 x 1.5,15,8,40,4.50,TriClover Supply Co,Warehouse A,Standard elbow
+TC-TEE-1.5,TC Tee Inst 1.5,12,6,30,15.76,TriClover Supply Co,Warehouse A,Instrumentation tee
+BOLT-M8-20,Bolt M8 x 20 mm Flanged Button Head 18-8 SS,250,100,500,0.38,McMaster-Carr,Warehouse C,Standard fastener
+WASH-M8,Washer Locking M8 Internal Tooth 304 SS,180,80,400,0.07,McMaster-Carr,Warehouse C,Locking washer
+CLAMP-40,Strut Channel U-Clamp 40 mm x 38 mm,20,10,50,2.75,Structural Supply LLC,Warehouse B,Strut hardware
+CAST-5-STD,Caster 5 Dia 1/2 Stem,6,4,15,43.67,Industrial Wheels Co,Warehouse B,Standard caster
+CAST-5-LOCK,Caster 5 Dia 1/2 Stem Total Lock,4,2,12,53.15,Industrial Wheels Co,Warehouse B,Locking caster
+NUT-0.5-LOCK,Nut 1/2 Locking,35,20,80,0.33,McMaster-Carr,Warehouse C,Locking nut
+NUT-M8-STRUT,Nut M8 Strut,75,30,150,1.75,Structural Supply LLC,Warehouse B,Strut channel nut
+HANG-1.5,Pipe Hanger 1.5 Strut-clips,18,8,40,15.69,Structural Supply LLC,Warehouse B,Pipe support
+STRUT-1.5-B2B,Strut Channel 1-5/8 x 1-5/8 x 1.5 Back-to-back,3,2,10,23.35,Structural Supply LLC,Warehouse B,Short strut section
+STRUT-2-B2B,Strut Channel 1-5/8 x 1-5/8 x 2 Back-to-back,5,3,15,30.99,Structural Supply LLC,Warehouse B,Medium strut section
+STRUT-3-B2B,Strut Channel 1-5/8 x 1-5/8 x 3 Back-to-back,4,2,12,43.99,Structural Supply LLC,Warehouse B,Long strut section
+COVER-1.625,Strut Channel Cover 1-5/8 Black,65,25,120,1.92,Structural Supply LLC,Warehouse B,Protective cover

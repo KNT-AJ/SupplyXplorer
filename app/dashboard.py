@@ -157,7 +157,17 @@ app.layout = dbc.Container([
                                 inline=True,
                                 className="mb-3"
                             )
-                        ])
+                        ], width=8),
+                        dbc.Col([
+                            dbc.Button(
+                                "Export Orders to CSV",
+                                id="export-orders-btn",
+                                color="success",
+                                size="sm",
+                                className="float-end",
+                                outline=True
+                            )
+                        ], width=4)
                     ]),
                     # Order Summary Cards
                     html.Div(id="order-summary-cards", className="mb-3"),
@@ -168,7 +178,21 @@ app.layout = dbc.Container([
             # Cash Flow Chart
             dbc.Row([
                 dbc.Col([
-                    html.H4("Cash Flow Projection", className="mb-3"),
+                    dbc.Row([
+                        dbc.Col([
+                            html.H4("Cash Flow Projection", className="mb-3")
+                        ], width=8),
+                        dbc.Col([
+                            dbc.Button(
+                                "Export Cash Flow to CSV",
+                                id="export-cashflow-btn",
+                                color="success",
+                                size="sm",
+                                className="float-end",
+                                outline=True
+                            )
+                        ], width=4)
+                    ]),
                     dcc.Graph(id="cash-flow-chart")
                 ])
             ])
@@ -188,8 +212,11 @@ app.layout = dbc.Container([
                             dbc.Button("Save Changes", id="save-bom-btn", color="success", className="mb-3")
                         ], width=3),
                         dbc.Col([
+                            dbc.Button("Export to CSV", id="export-bom-btn", color="info", className="mb-3", outline=True)
+                        ], width=3),
+                        dbc.Col([
                             html.Div(id="bom-save-status", className="mb-3")
-                        ], width=6)
+                        ], width=3)
                     ]),
                     html.Div(id="bom-data-table")
                 ])
@@ -210,8 +237,11 @@ app.layout = dbc.Container([
                             dbc.Button("Save Changes", id="save-forecast-btn", color="success", className="mb-3")
                         ], width=3),
                         dbc.Col([
+                            dbc.Button("Export to CSV", id="export-forecast-btn", color="info", className="mb-3", outline=True)
+                        ], width=3),
+                        dbc.Col([
                             html.Div(id="forecast-save-status", className="mb-3")
-                        ], width=6)
+                        ], width=3)
                     ]),
                     html.Div(id="forecast-data-table")
                 ])
@@ -253,10 +283,13 @@ app.layout = dbc.Container([
                             html.H5("Quick Actions"),
                             dbc.Row([
                                 dbc.Col([
-                                    dbc.Button("Refresh Inventory Data", id="refresh-inventory-btn", color="primary", className="mb-3 w-100")
+                                    dbc.Button("Refresh Inventory Data", id="refresh-inventory-btn", color="primary", className="mb-2 w-100")
                                 ], width=12),
                                 dbc.Col([
-                                    dbc.Button("Save Changes", id="save-inventory-btn", color="success", className="mb-3 w-100")
+                                    dbc.Button("Save Changes", id="save-inventory-btn", color="success", className="mb-2 w-100")
+                                ], width=12),
+                                dbc.Col([
+                                    dbc.Button("Export to CSV", id="export-inventory-btn", color="info", className="mb-2 w-100", outline=True)
                                 ], width=12),
                                 dbc.Col([
                                     html.Div(id="inventory-save-status", className="mb-3")
@@ -269,7 +302,14 @@ app.layout = dbc.Container([
             ])
         ], label="Inventory", tab_id="inventory")
     ], id="tabs", active_tab="data-planning"),
-    dcc.Store(id='planning-results-store')
+    dcc.Store(id='planning-results-store'),
+    
+    # Download components for CSV exports
+    dcc.Download(id="download-orders"),
+    dcc.Download(id="download-cashflow"),
+    dcc.Download(id="download-bom"),
+    dcc.Download(id="download-forecast"),
+    dcc.Download(id="download-inventory")
 ], fluid=True)
 
 # Callbacks
@@ -563,9 +603,75 @@ def initialize_tab_content(active_tab):
                     if 'last_restock_date' in df.columns:
                         df['last_restock_date'] = pd.to_datetime(df['last_restock_date']).dt.strftime('%Y-%m-%d %H:%M')
                     
-                    inventory_content = dash_table.DataTable(
+                    inventory_content = html.Div([
+                        dash_table.DataTable(
+                            id='inventory-data-editable-table',
+                            data=df.to_dict('records'),
+                            columns=[
+                                {"name": "ID", "id": "id", "editable": False},
+                                {"name": "Part ID", "id": "part_id", "editable": True},
+                                {"name": "Part Name", "id": "part_name", "editable": True},
+                                {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
+                                {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
+                                {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
+                                {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
+                                {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
+                                {"name": "Supplier ID", "id": "supplier_id", "editable": True},
+                                {"name": "Supplier Name", "id": "supplier_name", "editable": True},
+                                {"name": "Location", "id": "location", "editable": True},
+                                {"name": "Notes", "id": "notes", "editable": True}
+                            ],
+                            editable=True,
+                            row_deletable=True,
+                            style_table={'overflowX': 'auto'},
+                            style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                            style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
+                            style_data_conditional=[
+                                {
+                                    'if': {'column_editable': True},
+                                    'backgroundColor': 'rgb(248, 248, 248)',
+                                },
+                                {
+                                    'if': {'filter_query': '{current_stock} < {minimum_stock}'},
+                                    'backgroundColor': '#ffcccc',
+                                    'color': 'black',
+                                }
+                            ]
+                        )
+                    ])
+                else:
+                    inventory_content = html.Div([
+                        html.Div("No inventory data found. Please upload inventory data first.", style={'color': 'gray'}),
+                        dash_table.DataTable(
+                            id='inventory-data-editable-table',
+                            data=[],
+                            columns=[
+                                {"name": "ID", "id": "id", "editable": False},
+                                {"name": "Part ID", "id": "part_id", "editable": True},
+                                {"name": "Part Name", "id": "part_name", "editable": True},
+                                {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
+                                {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
+                                {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
+                                {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
+                                {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
+                                {"name": "Supplier ID", "id": "supplier_id", "editable": True},
+                                {"name": "Supplier Name", "id": "supplier_name", "editable": True},
+                                {"name": "Location", "id": "location", "editable": True},
+                                {"name": "Notes", "id": "notes", "editable": True}
+                            ],
+                            editable=True,
+                            row_deletable=True,
+                            style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
+                            style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                            style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
+                        )
+                    ])
+            else:
+                inventory_content = html.Div([
+                    html.Div("Error loading inventory data", style={'color': 'red'}),
+                    dash_table.DataTable(
                         id='inventory-data-editable-table',
-                        data=df.to_dict('records'),
+                        data=[],
                         columns=[
                             {"name": "ID", "id": "id", "editable": False},
                             {"name": "Part ID", "id": "part_id", "editable": True},
@@ -582,27 +688,38 @@ def initialize_tab_content(active_tab):
                         ],
                         editable=True,
                         row_deletable=True,
-                        style_table={'overflowX': 'auto'},
+                        style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
                         style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
-                        style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
-                        style_data_conditional=[
-                            {
-                                'if': {'column_editable': True},
-                                'backgroundColor': 'rgb(248, 248, 248)',
-                            },
-                            {
-                                'if': {'filter_query': '{current_stock} < {minimum_stock}'},
-                                'backgroundColor': '#ffcccc',
-                                'color': 'black',
-                            }
-                        ]
+                        style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
                     )
-                else:
-                    inventory_content = html.Div("No inventory data found. Please upload inventory data first.", style={'color': 'gray'})
-            else:
-                inventory_content = html.Div("Error loading inventory data", style={'color': 'red'})
+                ])
         except Exception as e:
-            inventory_content = html.Div(f"Error: {str(e)}", style={'color': 'red'})
+            inventory_content = html.Div([
+                html.Div(f"Error: {str(e)}", style={'color': 'red'}),
+                dash_table.DataTable(
+                    id='inventory-data-editable-table',
+                    data=[],
+                    columns=[
+                        {"name": "ID", "id": "id", "editable": False},
+                        {"name": "Part ID", "id": "part_id", "editable": True},
+                        {"name": "Part Name", "id": "part_name", "editable": True},
+                        {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
+                        {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
+                        {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
+                        {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
+                        {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
+                        {"name": "Supplier ID", "id": "supplier_id", "editable": True},
+                        {"name": "Supplier Name", "id": "supplier_name", "editable": True},
+                        {"name": "Location", "id": "location", "editable": True},
+                        {"name": "Notes", "id": "notes", "editable": True}
+                    ],
+                    editable=True,
+                    row_deletable=True,
+                    style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
+                    style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                    style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
+                )
+            ])
     
     return bom_content, forecast_content, inventory_content
 
@@ -1244,9 +1361,75 @@ def update_inventory_table(n_clicks):
                 if 'last_restock_date' in df.columns:
                     df['last_restock_date'] = pd.to_datetime(df['last_restock_date']).dt.strftime('%Y-%m-%d %H:%M')
                 
-                return dash_table.DataTable(
+                return html.Div([
+                    dash_table.DataTable(
+                        id='inventory-data-editable-table',
+                        data=df.to_dict('records'),
+                        columns=[
+                            {"name": "ID", "id": "id", "editable": False},
+                            {"name": "Part ID", "id": "part_id", "editable": True},
+                            {"name": "Part Name", "id": "part_name", "editable": True},
+                            {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
+                            {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
+                            {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
+                            {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
+                            {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
+                            {"name": "Supplier ID", "id": "supplier_id", "editable": True},
+                            {"name": "Supplier Name", "id": "supplier_name", "editable": True},
+                            {"name": "Location", "id": "location", "editable": True},
+                            {"name": "Notes", "id": "notes", "editable": True}
+                        ],
+                        editable=True,
+                        row_deletable=True,
+                        style_table={'overflowX': 'auto'},
+                        style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                        style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
+                        style_data_conditional=[
+                            {
+                                'if': {'column_editable': True},
+                                'backgroundColor': 'rgb(248, 248, 248)',
+                            },
+                            {
+                                'if': {'filter_query': '{current_stock} < {minimum_stock}'},
+                                'backgroundColor': '#ffcccc',
+                                'color': 'black',
+                            }
+                        ]
+                    )
+                ])
+            else:
+                return html.Div([
+                    html.Div("No inventory data found. Please upload inventory data first.", style={'color': 'gray'}),
+                    dash_table.DataTable(
+                        id='inventory-data-editable-table',
+                        data=[],
+                        columns=[
+                            {"name": "ID", "id": "id", "editable": False},
+                            {"name": "Part ID", "id": "part_id", "editable": True},
+                            {"name": "Part Name", "id": "part_name", "editable": True},
+                            {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
+                            {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
+                            {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
+                            {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
+                            {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
+                            {"name": "Supplier ID", "id": "supplier_id", "editable": True},
+                            {"name": "Supplier Name", "id": "supplier_name", "editable": True},
+                            {"name": "Location", "id": "location", "editable": True},
+                            {"name": "Notes", "id": "notes", "editable": True}
+                        ],
+                        editable=True,
+                        row_deletable=True,
+                        style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
+                        style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                        style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
+                    )
+                ])
+        else:
+            return html.Div([
+                html.Div("Error loading inventory data", style={'color': 'red'}),
+                dash_table.DataTable(
                     id='inventory-data-editable-table',
-                    data=df.to_dict('records'),
+                    data=[],
                     columns=[
                         {"name": "ID", "id": "id", "editable": False},
                         {"name": "Part ID", "id": "part_id", "editable": True},
@@ -1263,27 +1446,38 @@ def update_inventory_table(n_clicks):
                     ],
                     editable=True,
                     row_deletable=True,
-                    style_table={'overflowX': 'auto'},
+                    style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
                     style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
-                    style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
-                    style_data_conditional=[
-                        {
-                            'if': {'column_editable': True},
-                            'backgroundColor': 'rgb(248, 248, 248)',
-                        },
-                        {
-                            'if': {'filter_query': '{current_stock} < {minimum_stock}'},
-                            'backgroundColor': '#ffcccc',
-                            'color': 'black',
-                        }
-                    ]
+                    style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
                 )
-            else:
-                return html.Div("No inventory data found. Please upload inventory data first.", style={'color': 'gray'})
-        else:
-            return html.Div("Error loading inventory data", style={'color': 'red'})
+            ])
     except Exception as e:
-        return html.Div(f"Error: {str(e)}", style={'color': 'red'})
+        return html.Div([
+            html.Div(f"Error: {str(e)}", style={'color': 'red'}),
+            dash_table.DataTable(
+                id='inventory-data-editable-table',
+                data=[],
+                columns=[
+                    {"name": "ID", "id": "id", "editable": False},
+                    {"name": "Part ID", "id": "part_id", "editable": True},
+                    {"name": "Part Name", "id": "part_name", "editable": True},
+                    {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
+                    {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
+                    {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
+                    {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
+                    {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
+                    {"name": "Supplier ID", "id": "supplier_id", "editable": True},
+                    {"name": "Supplier Name", "id": "supplier_name", "editable": True},
+                    {"name": "Location", "id": "location", "editable": True},
+                    {"name": "Notes", "id": "notes", "editable": True}
+                ],
+                editable=True,
+                row_deletable=True,
+                style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
+                style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
+            )
+        ])
 
 @app.callback(
     Output('inventory-save-status', 'children'),
@@ -1340,6 +1534,130 @@ def save_inventory_data(n_clicks, table_data):
     except Exception as e:
         return dbc.Alert(f"Error: {str(e)}", color="danger", duration=5000)
     return ""
+
+# Update export button text based on view selection
+@app.callback(
+    Output('export-orders-btn', 'children'),
+    Input('order-view-toggle', 'value')
+)
+def update_export_button_text(view_type):
+    if view_type == "aggregated":
+        return "Export Aggregated Orders to CSV"
+    else:
+        return "Export Detailed Orders to CSV"
+
+# CSV Export callbacks
+@app.callback(
+    Output('download-orders', 'data'),
+    Input('export-orders-btn', 'n_clicks'),
+    State('start-date', 'date'),
+    State('end-date', 'date'),
+    State('order-view-toggle', 'value'),
+    prevent_initial_call=True
+)
+def export_orders_csv(n_clicks, start_date, end_date, view_type):
+    if n_clicks:
+        try:
+            # Convert date strings to datetime
+            start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
+            end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
+            
+            # Choose endpoint and filename based on view type
+            if view_type == "aggregated":
+                endpoint = f"{API_BASE}/export/orders-by-supplier"
+                filename = "aggregated_orders_by_supplier.csv"
+            else:
+                endpoint = f"{API_BASE}/export/orders"
+                filename = "detailed_order_schedule.csv"
+            
+            # Get data from API
+            response = requests.get(endpoint, params={
+                'start_date': start_dt.isoformat(),
+                'end_date': end_dt.isoformat()
+            })
+            
+            if response.status_code == 200:
+                return dict(content=response.text, filename=filename, type="text/csv")
+        except Exception as e:
+            print(f"Error exporting orders: {e}")
+    return None
+
+@app.callback(
+    Output('download-cashflow', 'data'),
+    Input('export-cashflow-btn', 'n_clicks'),
+    State('start-date', 'date'),
+    State('end-date', 'date'),
+    prevent_initial_call=True
+)
+def export_cashflow_csv(n_clicks, start_date, end_date):
+    if n_clicks:
+        try:
+            # Convert date strings to datetime
+            start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
+            end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
+            
+            # Get data from API
+            response = requests.get(f"{API_BASE}/export/cashflow", params={
+                'start_date': start_dt.isoformat(),
+                'end_date': end_dt.isoformat()
+            })
+            
+            if response.status_code == 200:
+                return dict(content=response.text, filename="cashflow_projection.csv", type="text/csv")
+        except Exception as e:
+            print(f"Error exporting cashflow: {e}")
+    return None
+
+@app.callback(
+    Output('download-bom', 'data'),
+    Input('export-bom-btn', 'n_clicks'),
+    prevent_initial_call=True
+)
+def export_bom_csv(n_clicks):
+    if n_clicks:
+        try:
+            # Get data from API
+            response = requests.get(f"{API_BASE}/export/bom")
+            
+            if response.status_code == 200:
+                return dict(content=response.text, filename="bom_data.csv", type="text/csv")
+        except Exception as e:
+            print(f"Error exporting BOM: {e}")
+    return None
+
+@app.callback(
+    Output('download-forecast', 'data'),
+    Input('export-forecast-btn', 'n_clicks'),
+    prevent_initial_call=True
+)
+def export_forecast_csv(n_clicks):
+    if n_clicks:
+        try:
+            # Get data from API
+            response = requests.get(f"{API_BASE}/export/forecast")
+            
+            if response.status_code == 200:
+                return dict(content=response.text, filename="forecast_data.csv", type="text/csv")
+        except Exception as e:
+            print(f"Error exporting forecast: {e}")
+    return None
+
+@app.callback(
+    Output('download-inventory', 'data'),
+    Input('export-inventory-btn', 'n_clicks'),
+    prevent_initial_call=True
+)
+def export_inventory_csv(n_clicks):
+    if n_clicks:
+        try:
+            # Get data from API
+            response = requests.get(f"{API_BASE}/export/inventory")
+            
+            if response.status_code == 200:
+                return dict(content=response.text, filename="inventory_data.csv", type="text/csv")
+        except Exception as e:
+            print(f"Error exporting inventory: {e}")
+    return None
 
 if __name__ == '__main__':
     app.run_server(debug=True, port=8050)

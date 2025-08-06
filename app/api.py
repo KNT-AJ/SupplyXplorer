@@ -602,6 +602,8 @@ async def upload_inventory(file: UploadFile = File(...), db: Session = Depends(g
         raise HTTPException(status_code=400, detail=f"Error processing CSV: {str(e)}")
 
 # Data export endpoints
+from fastapi.responses import StreamingResponse
+
 @app.get("/export/orders")
 def export_orders_csv(
     start_date: datetime,
@@ -628,9 +630,17 @@ def export_orders_csv(
     
     df = pd.DataFrame(data)
     
-    # Return CSV as string
-    csv_string = df.to_csv(index=False)
-    return {"csv_data": csv_string}
+    # Create CSV output
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=order_schedule.csv"}
+    )
 
 @app.get("/export/cashflow")
 def export_cashflow_csv(
@@ -656,9 +666,166 @@ def export_cashflow_csv(
     
     df = pd.DataFrame(data)
     
-    # Return CSV as string
-    csv_string = df.to_csv(index=False)
-    return {"csv_data": csv_string} 
+    # Create CSV output
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=cashflow_projection.csv"}
+    )
+
+@app.get("/export/bom")
+def export_bom_csv(db: Session = Depends(get_db)):
+    """Export BOM data to CSV"""
+    bom_records = db.query(BOM).all()
+    
+    # Convert to DataFrame
+    data = []
+    for bom in bom_records:
+        data.append({
+            'id': bom.id,
+            'product_id': bom.product_id,
+            'part_id': bom.part_id,
+            'part_name': bom.part_name,
+            'quantity': bom.quantity,
+            'unit_cost': bom.unit_cost,
+            'cost_per_product': bom.cost_per_product,
+            'beginning_inventory': bom.beginning_inventory,
+            'supplier_id': bom.supplier_id,
+            'supplier_name': bom.supplier_name,
+            'manufacturer': bom.manufacturer,
+            'ap_terms': bom.ap_terms,
+            'manufacturing_lead_time': bom.manufacturing_lead_time,
+            'shipping_lead_time': bom.shipping_lead_time,
+            'created_at': bom.created_at.strftime('%Y-%m-%d %H:%M:%S') if bom.created_at else None,
+            'updated_at': bom.updated_at.strftime('%Y-%m-%d %H:%M:%S') if bom.updated_at else None
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # Create CSV output
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=bom_data.csv"}
+    )
+
+@app.get("/export/forecast")
+def export_forecast_csv(db: Session = Depends(get_db)):
+    """Export forecast data to CSV"""
+    forecast_records = db.query(Forecast).all()
+    
+    # Convert to DataFrame
+    data = []
+    for forecast in forecast_records:
+        data.append({
+            'id': forecast.id,
+            'sku_id': forecast.sku_id,
+            'period_start': forecast.period_start.strftime('%Y-%m-%d') if forecast.period_start else None,
+            'units': forecast.units,
+            'created_at': forecast.created_at.strftime('%Y-%m-%d %H:%M:%S') if forecast.created_at else None,
+            'updated_at': forecast.updated_at.strftime('%Y-%m-%d %H:%M:%S') if forecast.updated_at else None
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # Create CSV output
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=forecast_data.csv"}
+    )
+
+@app.get("/export/orders-by-supplier")
+def export_orders_by_supplier_csv(
+    start_date: datetime,
+    end_date: datetime,
+    db: Session = Depends(get_db)
+):
+    """Export aggregated orders by supplier to CSV"""
+    planner = SupplyPlanner(db)
+    order_schedules = planner.generate_order_schedule(start_date, end_date)
+    supplier_orders = planner.aggregate_orders_by_supplier(order_schedules)
+    
+    # Convert to DataFrame
+    data = []
+    for order in supplier_orders:
+        data.append({
+            'supplier_name': order.supplier_name,
+            'order_date': order.order_date.strftime('%Y-%m-%d'),
+            'total_parts': order.total_parts,
+            'total_cost': order.total_cost,
+            'payment_date': order.payment_date.strftime('%Y-%m-%d'),
+            'days_until_order': order.days_until_order,
+            'days_until_payment': order.days_until_payment
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # Create CSV output
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=aggregated_orders_by_supplier.csv"}
+    )
+
+@app.get("/export/inventory")
+def export_inventory_csv(db: Session = Depends(get_db)):
+    """Export inventory data to CSV"""
+    inventory_records = db.query(Inventory).all()
+    
+    # Convert to DataFrame
+    data = []
+    for inventory in inventory_records:
+        data.append({
+            'id': inventory.id,
+            'part_id': inventory.part_id,
+            'part_name': inventory.part_name,
+            'current_stock': inventory.current_stock,
+            'minimum_stock': inventory.minimum_stock,
+            'maximum_stock': inventory.maximum_stock,
+            'unit_cost': inventory.unit_cost,
+            'total_value': inventory.total_value,
+            'supplier_id': inventory.supplier_id,
+            'supplier_name': inventory.supplier_name,
+            'location': inventory.location,
+            'notes': inventory.notes,
+            'created_at': inventory.created_at.strftime('%Y-%m-%d %H:%M:%S') if inventory.created_at else None,
+            'updated_at': inventory.updated_at.strftime('%Y-%m-%d %H:%M:%S') if inventory.updated_at else None
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # Create CSV output
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=inventory_data.csv"}
+    ) 
 
 # Data validation and summary endpoints
 @app.get("/validate/data")
