@@ -80,8 +80,8 @@ class Forecast(Base):
     __tablename__ = "forecasts"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sku_id = Column(String(50), nullable=False)  # Removed foreign key constraint
-    period_start = Column(DateTime, nullable=False)
+    system_sn = Column(String(50), nullable=False)  # Changed from sku_id to system_sn
+    installation_date = Column(DateTime, nullable=False)  # Changed from period_start to installation_date
     units = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

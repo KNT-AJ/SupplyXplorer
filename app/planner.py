@@ -19,8 +19,8 @@ class SupplyPlanner:
         
         # Get all forecasts in date range
         forecasts = self.db.query(Forecast).filter(
-            Forecast.period_start >= start_date,
-            Forecast.period_start <= end_date
+            Forecast.installation_date >= start_date,
+            Forecast.installation_date <= end_date
         ).all()
         
         # Get all BOM items
@@ -30,27 +30,27 @@ class SupplyPlanner:
         demand_data = []
         
         for forecast in forecasts:
-            # Find BOM items for this SKU/Product
+            # Find BOM items for this System SN/Product
             # First try exact match
-            sku_bom = [bom for bom in bom_items if bom.product_id == forecast.sku_id]
+            system_sn_bom = [bom for bom in bom_items if bom.product_id == forecast.system_sn]
             
             # If no exact match and we have a single product in BOM (common case)
             # Use the BOM for that product for all forecasts
-            if not sku_bom:
+            if not system_sn_bom:
                 unique_products = list(set(bom.product_id for bom in bom_items))
                 if len(unique_products) == 1:
-                    sku_bom = [bom for bom in bom_items if bom.product_id == unique_products[0]]
+                    system_sn_bom = [bom for bom in bom_items if bom.product_id == unique_products[0]]
             
-            for bom_item in sku_bom:
+            for bom_item in system_sn_bom:
                 # Calculate part demand = forecast units * BOM quantity
                 part_demand = forecast.units * bom_item.quantity
                 
                 demand_data.append({
                     'part_id': bom_item.part_id,
                     'part_name': bom_item.part_name,
-                    'period_start': forecast.period_start,
+                    'installation_date': forecast.installation_date,
                     'demand_qty': part_demand,
-                    'sku_id': forecast.sku_id,
+                    'system_sn': forecast.system_sn,
                     'unit_cost': bom_item.unit_cost
                 })
         
@@ -122,8 +122,8 @@ class SupplyPlanner:
             if not bom_item:
                 continue
                 
-            # Group by period and sum demand
-            period_demand = part_demand.groupby('period_start')['demand_qty'].sum().reset_index()
+            # Group by installation date and sum demand
+            period_demand = part_demand.groupby('installation_date')['demand_qty'].sum().reset_index()
             
             # Get current inventory for this part
             inventory_record = self.db.query(Inventory).filter(Inventory.part_id == part_id).first()
@@ -145,7 +145,7 @@ class SupplyPlanner:
             
             # Generate orders
             for _, row in period_demand.iterrows():
-                need_date = row['period_start']
+                need_date = row['installation_date']
                 demand_qty = row['demand_qty']
                 
                 # Calculate net demand (demand - available stock)

@@ -42,8 +42,8 @@ class BOMBase(BaseModel):
     shipping_cost: Optional[float] = Field(None, description="Shipping/logistics cost per unit")
 
 class ForecastBase(BaseModel):
-    sku_id: str = Field(..., description="Product SKU")
-    period_start: datetime = Field(..., description="Forecast period start")
+    system_sn: str = Field(..., description="System Serial Number")
+    installation_date: datetime = Field(..., description="Installation date")
     units: int = Field(..., description="Forecasted units")
 
 class LeadTimeBase(BaseModel):

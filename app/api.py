@@ -5,6 +5,7 @@ from typing import List
 import pandas as pd
 from datetime import datetime, timedelta
 import io
+from collections import defaultdict
 
 from app.database import get_db
 from app.models import Product, Part, Supplier, BOM, Forecast, LeadTime, Inventory
@@ -152,8 +153,8 @@ def bulk_update_forecast(updates: List[dict], db: Session = Depends(get_db)):
                     # Update only provided fields
                     for key, value in update.items():
                         if key != 'id' and hasattr(existing_record, key):
-                            # Handle date conversion for period_start
-                            if key == 'period_start' and isinstance(value, str):
+                            # Handle date conversion for installation_date
+                            if key == 'installation_date' and isinstance(value, str):
                                 try:
                                     value = datetime.strptime(value, '%Y-%m-%d').date()
                                 except ValueError:
@@ -308,6 +309,51 @@ def get_key_metrics(
     order_schedules = planner.generate_order_schedule(start_date, end_date)
     return planner.calculate_key_metrics(order_schedules)
 
+def generate_system_sn(installation_date, sequence_counter):
+    """
+    Generate System SN based on installation date and sequence number.
+    Format: [YearCode][MM][####] where #### is sequential within the month
+    
+    Args:
+        installation_date: datetime object
+        sequence_counter: dict to track sequence numbers per month
+    
+    Returns:
+        str: Generated System SN
+    """
+    # Year code mapping
+    year_codes = {
+        2025: "JT", 2026: "JW", 2027: "JX", 2028: "JY", 2029: "JZ",
+        2030: "KB", 2031: "KH", 2032: "KJ", 2033: "KK", 2034: "KS",
+        2035: "KT", 2036: "KW", 2037: "KX", 2038: "KY", 2039: "KZ",
+        2040: "SB", 2041: "SH", 2042: "SJ", 2043: "SK", 2044: "SS",
+        2045: "ST", 2046: "SW", 2047: "SX", 2048: "SY", 2049: "SZ",
+        2050: "TB", 2051: "TH", 2052: "TJ", 2053: "TK", 2054: "TS",
+        2055: "TT", 2056: "TW", 2057: "TX", 2058: "TY", 2059: "TZ",
+        2060: "WB", 2061: "WH", 2062: "WJ", 2063: "WK", 2064: "WS",
+        2065: "WT", 2066: "WW", 2067: "WX", 2068: "WY", 2069: "WZ",
+        2070: "XB", 2071: "XH", 2072: "XJ", 2073: "XK", 2074: "XS",
+        2075: "XT", 2076: "XW", 2077: "XX", 2078: "XY", 2079: "XZ",
+        2080: "YB", 2081: "YH"
+    }
+    
+    # Get year code and month
+    year = installation_date.year
+    year_code = year_codes.get(year, "JT")  # Default to JT if year not found
+    month = f"{installation_date.month:02d}"
+    
+    # Create month key for sequence tracking (year-month combination)
+    month_key = f"{year}-{month}"
+    
+    # Increment sequence for this month
+    sequence_counter[month_key] += 1
+    sequence = f"{sequence_counter[month_key]:04d}"
+    
+    # Format: YearCode + MM + ####
+    system_sn = f"{year_code}{month}{sequence}"
+    
+    return system_sn
+
 # CSV upload endpoints
 @app.post("/upload/forecast", response_model=ForecastUpload)
 async def upload_forecast(file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -319,23 +365,58 @@ async def upload_forecast(file: UploadFile = File(...), db: Session = Depends(ge
         contents = await file.read()
         df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
         
-        # Expected columns: sku_id, date, quantity
-        required_columns = ['sku_id', 'date', 'quantity']
-        if not all(col in df.columns for col in required_columns):
-            raise HTTPException(status_code=400, detail="CSV must contain: sku_id, date, quantity")
-        
-        # Clear existing forecast data
-        db.query(Forecast).delete()
-        
-        forecast_items_created = 0
-        for _, row in df.iterrows():
-            forecast_item = Forecast(
-                sku_id=row['sku_id'],
-                period_start=pd.to_datetime(row['date']),
-                units=int(row['quantity'])
-            )
-            db.add(forecast_item)
-            forecast_items_created += 1
+        # Support both old and new column formats
+        # New format: System SN, Installation Date, quantity
+        # Old format: sku_id, date, quantity  
+        if 'System SN' in df.columns and 'Installation Date' in df.columns:
+            # New format - use existing System SN
+            required_columns = ['System SN', 'Installation Date', 'quantity']
+            if not all(col in df.columns for col in required_columns):
+                raise HTTPException(status_code=400, detail="CSV must contain: System SN, Installation Date, quantity")
+            
+            # Clear existing forecast data
+            db.query(Forecast).delete()
+            
+            forecast_items_created = 0
+            for _, row in df.iterrows():
+                forecast_item = Forecast(
+                    system_sn=row['System SN'],
+                    installation_date=pd.to_datetime(row['Installation Date']),
+                    units=int(row['quantity'])
+                )
+                db.add(forecast_item)
+                forecast_items_created += 1
+                
+        elif 'sku_id' in df.columns and 'date' in df.columns:
+            # Old format - generate System SN automatically
+            required_columns = ['sku_id', 'date', 'quantity']
+            if not all(col in df.columns for col in required_columns):
+                raise HTTPException(status_code=400, detail="CSV must contain: sku_id, date, quantity")
+            
+            # Sort by date to ensure consistent System SN generation
+            df = df.sort_values('date').reset_index(drop=True)
+            df['date'] = pd.to_datetime(df['date'])
+            
+            # Clear existing forecast data
+            db.query(Forecast).delete()
+            
+            # Initialize sequence counter for System SN generation
+            sequence_counter = defaultdict(int)
+            
+            forecast_items_created = 0
+            for _, row in df.iterrows():
+                installation_date = row['date']
+                system_sn = generate_system_sn(installation_date, sequence_counter)
+                
+                forecast_item = Forecast(
+                    system_sn=system_sn,
+                    installation_date=installation_date,
+                    units=int(row['quantity'])
+                )
+                db.add(forecast_item)
+                forecast_items_created += 1
+        else:
+            raise HTTPException(status_code=400, detail="CSV must contain either (System SN, Installation Date, quantity) or (sku_id, date, quantity)")
         
         db.commit()
         return {"message": f"Created {forecast_items_created} forecast items", "filename": file.filename}
@@ -729,8 +810,8 @@ def export_forecast_csv(db: Session = Depends(get_db)):
     for forecast in forecast_records:
         data.append({
             'id': forecast.id,
-            'sku_id': forecast.sku_id,
-            'period_start': forecast.period_start.strftime('%Y-%m-%d') if forecast.period_start else None,
+            'system_sn': forecast.system_sn,
+            'installation_date': forecast.installation_date.strftime('%Y-%m-%d') if forecast.installation_date else None,
             'units': forecast.units,
             'created_at': forecast.created_at.strftime('%Y-%m-%d %H:%M:%S') if forecast.created_at else None,
             'updated_at': forecast.updated_at.strftime('%Y-%m-%d %H:%M:%S') if forecast.updated_at else None
@@ -843,10 +924,10 @@ def validate_data_integrity(db: Session = Depends(get_db)):
     if bom_count == 0:
         issues.append("No BOM data found")
     
-    # Check for orphaned BOMs (BOMs without matching forecast SKUs)
-    forecast_skus = set(sku[0] for sku in db.query(Forecast.sku_id).distinct().all())
+    # Check for orphaned BOMs (BOMs without matching forecast System SNs)
+    forecast_system_sns = set(sn[0] for sn in db.query(Forecast.system_sn).distinct().all())
     bom_products = set(product[0] for product in db.query(BOM.product_id).distinct().all())
-    orphaned_boms = bom_products - forecast_skus
+    orphaned_boms = bom_products - forecast_system_sns
     if orphaned_boms:
         issues.append(f"BOM products without forecasts: {', '.join(list(orphaned_boms)[:5])}")
     
@@ -878,8 +959,8 @@ def get_data_summary(db: Session = Depends(get_db)):
     
     # Add forecast date range if we have forecasts
     if summary["forecasts"] > 0:
-        earliest = db.query(Forecast.period_start).order_by(Forecast.period_start.asc()).first()
-        latest = db.query(Forecast.period_start).order_by(Forecast.period_start.desc()).first()
+        earliest = db.query(Forecast.installation_date).order_by(Forecast.installation_date.asc()).first()
+        latest = db.query(Forecast.installation_date).order_by(Forecast.installation_date.desc()).first()
         summary["forecast_date_range"] = {
             "earliest": earliest[0].strftime('%Y-%m-%d') if earliest else None,
             "latest": latest[0].strftime('%Y-%m-%d') if latest else None

@@ -1,0 +1,20 @@
+part_name,supplier,manufacturer,units_needed,cost_per_unit,cost_per_product,beginning_inventory,ap_term,ap_month_lag_days,manufacturing_days_lead,shipping_days_lead
+TC High Pressure 1.5,TriClover Supply Co,TriClover,17,$2.72,$46.24,0,Net 30,30,30,30
+TC Butterfly Valve Squeeze Blue 1.5,TriClover Supply Co,TriClover,6,$34.49,$206.94,0,Net 30,30,30,30
+TC Gasket 1.5 Blue,TriClover Supply Co,TriClover,17,$0.23,$3.91,0,Net 30,30,30,30
+TC Pressure Gauge 0-120 psi 1.5,Pressure Instruments Inc,TriClover,2,$45.00,$90.00,0,Net 45,45,45,15
+TC Spool 1.5 x 24,TriClover Supply Co,TriClover,1,$14.00,$14.00,0,Net 30,30,30,30
+TC Elbow 90 x 1.5,TriClover Supply Co,TriClover,2,$4.50,$9.00,0,Net 30,30,30,30
+TC Tee Inst 1.5,TriClover Supply Co,TriClover,5,$15.76,$78.80,0,Net 30,30,30,30
+Bolt M8 x 20 mm Flanged Button Head 18-8 SS,McMaster-Carr,McMaster-Carr,12,$0.38,$4.56,0,Net 30,30,15,7
+Washer Locking M8 Internal Tooth 304 SS,McMaster-Carr,McMaster-Carr,12,$0.07,$0.84,0,Net 30,30,15,7
+Strut Channel U-Clamp 40 mm x 38 mm,Structural Supply LLC,Unistrut,6,$2.75,$16.50,0,Net 60,60,60,14
+Caster 5 Dia 1/2 Stem,Industrial Wheels Co,Albion,2,$43.67,$87.34,0,Net 45,45,30,10
+Caster 5 Dia 1/2 Stem Total Lock,Industrial Wheels Co,Albion,2,$53.15,$106.30,0,Net 45,45,30,10
+Nut 1/2 Locking,McMaster-Carr,McMaster-Carr,4,$0.33,$1.32,0,Net 30,30,15,7
+Nut M8 Strut,Structural Supply LLC,Unistrut,14,$1.75,$24.50,0,Net 60,60,60,14
+Pipe Hanger 1.5 Strut-clips,Structural Supply LLC,Unistrut,6,$15.69,$94.14,0,Net 60,60,60,14
+Strut Channel 1-5/8 x 1-5/8 x 1.5 Back-to-back,Structural Supply LLC,Unistrut,1,$23.35,$23.35,0,Net 60,60,60,14
+Strut Channel 1-5/8 x 1-5/8 x 2 Back-to-back,Structural Supply LLC,Unistrut,2,$30.99,$61.98,0,Net 60,60,60,14
+Strut Channel 1-5/8 x 1-5/8 x 3 Back-to-back,Structural Supply LLC,Unistrut,2,$43.99,$87.98,0,Net 60,60,60,14
+Strut Channel Cover 1-5/8 Black,Structural Supply LLC,Unistrut,12,$1.92,$22.08,0,Net 60,60,60,14

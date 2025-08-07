@@ -552,8 +552,8 @@ def initialize_tab_content(active_tab):
                     df = pd.DataFrame(forecast_data)
                     
                     # Convert datetime columns to strings for display
-                    if 'period_start' in df.columns:
-                        df['period_start'] = pd.to_datetime(df['period_start']).dt.strftime('%Y-%m-%d')
+                    if 'installation_date' in df.columns:
+                        df['installation_date'] = pd.to_datetime(df['installation_date']).dt.strftime('%Y-%m-%d')
                     if 'created_at' in df.columns:
                         df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
                     if 'updated_at' in df.columns:
@@ -564,8 +564,8 @@ def initialize_tab_content(active_tab):
                         data=df.to_dict('records'),
                         columns=[
                             {"name": "ID", "id": "id", "editable": False},
-                            {"name": "SKU ID", "id": "sku_id", "editable": True},
-                            {"name": "Period Start", "id": "period_start", "editable": True, "type": "datetime"},
+                            {"name": "System SN", "id": "system_sn", "editable": True},
+                            {"name": "Installation Date", "id": "installation_date", "editable": True, "type": "datetime"},
                             {"name": "Units", "id": "units", "editable": True, "type": "numeric"}
                         ],
                         editable=True,
