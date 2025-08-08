@@ -10,3 +10,5 @@ pydantic==2.10.4
 python-multipart==0.0.9
 python-dotenv==1.0.1
 click==8.1.7
+google-genai==1.2.0
+openai==1.43.0

@@ -8,19 +8,32 @@ import io
 from collections import defaultdict
 
 from app.database import get_db
-from app.models import Product, Part, Supplier, BOM, Forecast, LeadTime, Inventory
+from app.models import Product, Part, Supplier, BOM, Forecast, LeadTime, Inventory, Order
 from app.schemas import (
-    ProductCreate, Product as ProductSchema,
-    PartCreate, Part as PartSchema,
-    SupplierCreate, Supplier as SupplierSchema,
-    BOMCreate, BOM as BOMSchema,
-    ForecastCreate, Forecast as ForecastSchema,
-    LeadTimeCreate, LeadTime as LeadTimeSchema,
-    InventoryCreate, Inventory as InventorySchema,
+    ProductCreate, ProductSchema,
+    PartCreate, PartSchema,
+    SupplierCreate, SupplierSchema,
+    BOMCreate, BOMSchema,
+    ForecastCreate, ForecastSchema,
+    LeadTimeCreate, LeadTimeSchema,
+    InventoryCreate, InventorySchema,
     OrderSchedule, CashFlowProjection, KeyMetrics, SupplierOrderSummary,
-    ForecastUpload, BOMUpload, LeadTimeUpload, InventoryUpload
+    ForecastUpload, BOMUpload, LeadTimeUpload, InventoryUpload,
+    PendingOrderCreate, PendingOrderSchema
 )
 from app.planner import SupplyPlanner
+from app.tariff_utils import (
+    is_supplier_subject_to_tariffs,
+    DEFAULT_COUNTRY_OF_ORIGIN_TARIFFED,
+    DEFAULT_HTS_CODE,
+    DEFAULT_IMPORTING_COUNTRY,
+)
+from fastapi import Body
+import json
+import os
+from app.tariff_calculator import TariffCalculator, TariffInputs
+from app.pdf_llm_extractor import extract_pending_orders_from_pdf
+from app.schemas import TariffQuoteRequest, TariffQuoteResponse
 
 app = FastAPI(
     title="SupplyXplorer API",
@@ -253,6 +266,114 @@ def delete_inventory(part_id: str, db: Session = Depends(get_db)):
     db.delete(inventory)
     db.commit()
     return {"message": f"Inventory for part {part_id} deleted successfully"}
+
+# Pending Orders endpoints
+@app.post("/orders/pending", response_model=PendingOrderSchema)
+def create_pending_order(order: PendingOrderCreate, db: Session = Depends(get_db)):
+    db_order = Order(**order.dict())
+    db.add(db_order)
+    db.commit()
+    db.refresh(db_order)
+    return db_order
+
+@app.get("/orders/pending", response_model=List[PendingOrderSchema])
+def list_pending_orders(db: Session = Depends(get_db)):
+    return db.query(Order).order_by(Order.order_date.desc()).all()
+
+@app.put("/orders/pending/{order_id}", response_model=PendingOrderSchema)
+def update_pending_order(order_id: int, order: PendingOrderCreate, db: Session = Depends(get_db)):
+    db_order = db.query(Order).filter(Order.id == order_id).first()
+    if not db_order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    for key, value in order.dict().items():
+        setattr(db_order, key, value)
+    db_order.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(db_order)
+    return db_order
+
+@app.delete("/orders/pending/{order_id}")
+def delete_pending_order(order_id: int, db: Session = Depends(get_db)):
+    db_order = db.query(Order).filter(Order.id == order_id).first()
+    if not db_order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    db.delete(db_order)
+    db.commit()
+    return {"message": f"Order {order_id} deleted"}
+
+@app.post("/orders/pending/upload-pdf")
+async def upload_pending_orders_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Upload an invoice/quote PDF, extract pending orders via LLM fallback chain, and insert.
+
+    Uses providers in this order: Gemini 2.0 Flash → GPT-4o mini → Gemini 2.5 Flash Lite.
+    Returns inserted orders and any provider errors encountered.
+    """
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    orders, extractor_errors = extract_pending_orders_from_pdf(contents)
+    if not orders:
+        raise HTTPException(status_code=422, detail={
+            "message": "Could not extract orders from PDF",
+            "providers": extractor_errors,
+        })
+
+    created: list = []
+    for o in orders:
+        try:
+            # Normalize and coerce fields defensively
+            payload = {
+                'part_id': str(o.get('part_id', '')).strip(),
+                'supplier_id': (str(o.get('supplier_id')).strip() if o.get('supplier_id') is not None else None),
+                'supplier_name': (str(o.get('supplier_name')).strip() if o.get('supplier_name') is not None else None),
+                'order_date': pd.to_datetime(o.get('order_date')).to_pydatetime() if o.get('order_date') else datetime.utcnow(),
+                'estimated_delivery_date': (pd.to_datetime(o.get('estimated_delivery_date')).to_pydatetime() if o.get('estimated_delivery_date') else None),
+                'qty': int(float(o.get('qty', 0) or 0)),
+                'unit_cost': float(str(o.get('unit_cost', 0)).replace('$','').replace(',','')) if o.get('unit_cost') is not None else 0.0,
+                'payment_date': (pd.to_datetime(o.get('payment_date')).to_pydatetime() if o.get('payment_date') else None),
+                'status': (str(o.get('status') or 'pending')).strip().lower(),
+                'po_number': (str(o.get('po_number')).strip() if o.get('po_number') else None),
+                'notes': (str(o.get('notes')).strip() if o.get('notes') else None),
+            }
+            if not payload['part_id'] or payload['qty'] <= 0:
+                continue
+            db_order = Order(**payload)
+            db.add(db_order)
+            db.commit()
+            db.refresh(db_order)
+            created.append(db_order)
+        except Exception as e:
+            db.rollback()
+            # Skip bad rows but report later
+            extractor_errors.append(f"insert:error:{str(e)}")
+
+    return {
+        "inserted": [
+            {
+                'id': c.id,
+                'part_id': c.part_id,
+                'supplier_id': c.supplier_id,
+                'supplier_name': c.supplier_name,
+                'order_date': c.order_date.isoformat() if c.order_date else None,
+                'estimated_delivery_date': c.estimated_delivery_date.isoformat() if c.estimated_delivery_date else None,
+                'qty': c.qty,
+                'unit_cost': c.unit_cost,
+                'payment_date': c.payment_date.isoformat() if c.payment_date else None,
+                'status': c.status,
+                'po_number': c.po_number,
+                'notes': c.notes,
+            }
+            for c in created
+        ],
+        "errors": extractor_errors,
+        "filename": file.filename,
+    }
+
+from fastapi.responses import StreamingResponse
 
 # Planning engine endpoints
 @app.post("/plan/run")
@@ -520,7 +641,11 @@ async def upload_bom(file: UploadFile = File(...), db: Session = Depends(get_db)
             'ap_term': 'ap_terms',
             'ap_month_lag_days': 'ap_month_lag_days',
             'manufacturing_days_lead': 'manufacturing_lead_time',
-            'shipping_days_lead': 'shipping_lead_time'
+            'shipping_days_lead': 'shipping_lead_time',
+            'country_of_origin': 'country_of_origin',
+            'shipping_cost': 'shipping_cost',
+            'hts_code': 'hts_code',
+            'subject_to_tariffs': 'subject_to_tariffs'
         }
         
         # Check for required columns (flexible approach)
@@ -586,6 +711,21 @@ async def upload_bom(file: UploadFile = File(...), db: Session = Depends(get_db)
                     import re
                     supplier_id = re.sub(r'[^A-Z0-9_]', '', supplier_id)
 
+                # Optional: country of origin and shipping cost
+                country_of_origin = clean_text(str(row.get('country_of_origin', '')).strip()) if pd.notna(row.get('country_of_origin')) else None
+                shipping_cost_val = clean_currency(row.get('shipping_cost', 0))
+                # Subject to tariffs: use provided or infer from supplier
+                subject_to_tariffs = None
+                if 'subject_to_tariffs' in df.columns and pd.notna(row.get('subject_to_tariffs')):
+                    val = clean_text(str(row.get('subject_to_tariffs'))).strip()
+                    subject_to_tariffs = 'Yes' if val.lower() in ['yes', 'y', 'true', '1'] else 'No'
+                else:
+                    subject_to_tariffs = is_supplier_subject_to_tariffs(supplier_name) if supplier_name else 'No'
+
+                # If subject to tariffs and COO missing, assume China by default
+                if subject_to_tariffs == 'Yes' and (not country_of_origin or not country_of_origin.strip()):
+                    country_of_origin = DEFAULT_COUNTRY_OF_ORIGIN_TARIFFED
+
                 bom_record = BOM(
                     product_id=product_id,
                     part_id=part_id,
@@ -600,7 +740,13 @@ async def upload_bom(file: UploadFile = File(...), db: Session = Depends(get_db)
                     ap_terms=parse_ap_terms(row.get('ap_term')),
                     ap_month_lag_days=int(row['ap_month_lag_days']) if pd.notna(row.get('ap_month_lag_days')) else None,
                     manufacturing_lead_time=int(row['manufacturing_days_lead']) if pd.notna(row.get('manufacturing_days_lead')) else None,
-                    shipping_lead_time=int(row['shipping_days_lead']) if pd.notna(row.get('shipping_days_lead')) else None
+                    shipping_lead_time=int(row['shipping_days_lead']) if pd.notna(row.get('shipping_days_lead')) else None,
+                    country_of_origin=country_of_origin,
+                    shipping_cost=shipping_cost_val,
+                    subject_to_tariffs=subject_to_tariffs,
+                    hts_code=(
+                        clean_text(str(row.get('hts_code', '')).strip()) if pd.notna(row.get('hts_code')) and str(row.get('hts_code', '')).strip() else DEFAULT_HTS_CODE if subject_to_tariffs == 'Yes' else None
+                    )
                 )
                 bom_records.append(bom_record)
             except (ValueError, TypeError) as e:
@@ -706,7 +852,16 @@ def export_orders_csv(
             'payment_date': order.payment_date.strftime('%Y-%m-%d'),
             'unit_cost': order.unit_cost,
             'total_cost': order.total_cost,
-            'status': order.status
+            'status': order.status,
+            'supplier_name': order.supplier_name,
+            'country_of_origin': getattr(order, 'country_of_origin', None),
+            'subject_to_tariffs': getattr(order, 'subject_to_tariffs', None),
+            'shipping_cost_per_unit': getattr(order, 'shipping_cost_per_unit', 0.0),
+            'shipping_cost_total': getattr(order, 'shipping_cost_total', 0.0),
+            'tariff_rate': getattr(order, 'tariff_rate', 0.0),
+            'tariff_amount': getattr(order, 'tariff_amount', 0.0),
+            'base_cost': getattr(order, 'base_cost', 0.0),
+            'total_cost_without_tariff': getattr(order, 'total_cost_without_tariff', 0.0)
         })
     
     df = pd.DataFrame(data)
@@ -782,6 +937,10 @@ def export_bom_csv(db: Session = Depends(get_db)):
             'ap_terms': bom.ap_terms,
             'manufacturing_lead_time': bom.manufacturing_lead_time,
             'shipping_lead_time': bom.shipping_lead_time,
+            'country_of_origin': bom.country_of_origin,
+            'shipping_cost': bom.shipping_cost,
+            'hts_code': bom.hts_code,
+            'subject_to_tariffs': bom.subject_to_tariffs,
             'created_at': bom.created_at.strftime('%Y-%m-%d %H:%M:%S') if bom.created_at else None,
             'updated_at': bom.updated_at.strftime('%Y-%m-%d %H:%M:%S') if bom.updated_at else None
         })
@@ -799,6 +958,49 @@ def export_bom_csv(db: Session = Depends(get_db)):
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=bom_data.csv"}
     )
+
+@app.get("/export/orders-pending")
+def export_pending_orders_csv(db: Session = Depends(get_db)):
+    """Export pending orders to CSV"""
+    orders = db.query(Order).all()
+    data = []
+    for o in orders:
+        data.append({
+            'id': o.id,
+            'part_id': o.part_id,
+            'supplier_id': o.supplier_id,
+            'supplier_name': o.supplier_name,
+            'order_date': o.order_date.strftime('%Y-%m-%d') if o.order_date else None,
+            'estimated_delivery_date': o.estimated_delivery_date.strftime('%Y-%m-%d') if o.estimated_delivery_date else None,
+            'qty': o.qty,
+            'unit_cost': o.unit_cost,
+            'payment_date': o.payment_date.strftime('%Y-%m-%d') if o.payment_date else None,
+            'status': o.status,
+            'po_number': o.po_number,
+            'notes': o.notes
+        })
+    df = pd.DataFrame(data)
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=pending_orders.csv"}
+    )
+
+@app.post("/tariff-config")
+def update_tariff_config(config: dict = Body(...)):
+    """Save tariff rate overrides to a JSON file the planner will read on init."""
+    try:
+        # Project root is parent of app directory
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        path = os.path.join(project_root, 'tariff_rates.json')
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2)
+        return {"message": "Tariff configuration saved", "path": path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save config: {str(e)}")
 
 @app.get("/export/forecast")
 def export_forecast_csv(db: Session = Depends(get_db)):
@@ -852,7 +1054,9 @@ def export_orders_by_supplier_csv(
             'total_cost': order.total_cost,
             'payment_date': order.payment_date.strftime('%Y-%m-%d'),
             'days_until_order': order.days_until_order,
-            'days_until_payment': order.days_until_payment
+            'days_until_payment': order.days_until_payment,
+            'total_tariff_amount': getattr(order, 'total_tariff_amount', 0.0),
+            'total_shipping_cost': getattr(order, 'total_shipping_cost', 0.0)
         })
     
     df = pd.DataFrame(data)
@@ -889,6 +1093,8 @@ def export_inventory_csv(db: Session = Depends(get_db)):
             'supplier_id': inventory.supplier_id,
             'supplier_name': inventory.supplier_name,
             'location': inventory.location,
+            'hts_code': inventory.hts_code,
+            'subject_to_tariffs': inventory.subject_to_tariffs,
             'notes': inventory.notes,
             'created_at': inventory.created_at.strftime('%Y-%m-%d %H:%M:%S') if inventory.created_at else None,
             'updated_at': inventory.updated_at.strftime('%Y-%m-%d %H:%M:%S') if inventory.updated_at else None
@@ -969,3 +1175,38 @@ def get_data_summary(db: Session = Depends(get_db)):
         summary["forecast_date_range"] = None
     
     return summary
+
+# Tariff quote endpoint
+@app.post("/tariff/quote", response_model=TariffQuoteResponse)
+def quote_tariff(payload: TariffQuoteRequest):
+    """Calculate a tariff quote based on provided shipment and classification context."""
+    calc = TariffCalculator()
+    inputs = TariffInputs(
+        hts_code=payload.hts_code,
+        country_of_origin=payload.country_of_origin,
+        importing_country=payload.importing_country or "USA",
+        invoice_value=payload.invoice_value,
+        currency_code=payload.currency_code or "USD",
+        fx_rate=payload.fx_rate or 1.0,
+        freight_to_border=payload.freight_to_border or 0.0,
+        insurance_cost=payload.insurance_cost or 0.0,
+        assists_tooling=payload.assists_tooling or 0.0,
+        royalties_fees=payload.royalties_fees or 0.0,
+        other_dutiable=payload.other_dutiable or 0.0,
+        incoterm=payload.incoterm,
+        quantity=payload.quantity,
+        quantity_uom=payload.quantity_uom,
+        net_weight_kg=payload.net_weight_kg,
+        volume_liters=payload.volume_liters,
+        unit_of_measure_hts=payload.unit_of_measure_hts,
+        fta_eligible=payload.fta_eligible,
+        fta_program=payload.fta_program,
+        add_cvd_rate_pct=payload.add_cvd_rate_pct or 0.0,
+        special_duty_surcharge_pct=payload.special_duty_surcharge_pct or 0.0,
+        entry_date=payload.entry_date.isoformat() if payload.entry_date else None,
+        de_minimis=payload.de_minimis,
+        port_of_entry=payload.port_of_entry,
+        transport_mode=payload.transport_mode,
+    )
+    result = calc.quote_duties(inputs)
+    return result

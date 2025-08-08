@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 
 # Base schemas
@@ -40,6 +40,8 @@ class BOMBase(BaseModel):
     shipping_lead_time: Optional[int] = Field(None, description="Shipping lead time in days")
     country_of_origin: Optional[str] = Field(None, description="Country of origin for tariff calculation")
     shipping_cost: Optional[float] = Field(None, description="Shipping/logistics cost per unit")
+    subject_to_tariffs: Optional[str] = Field("No", description="Whether part is subject to tariffs (Yes/No)")
+    hts_code: Optional[str] = Field(None, description="Harmonized Tariff Schedule code")
 
 class ForecastBase(BaseModel):
     system_sn: str = Field(..., description="System Serial Number")
@@ -63,6 +65,21 @@ class InventoryBase(BaseModel):
     location: Optional[str] = Field(None, description="Storage location")
     last_restock_date: Optional[datetime] = Field(None, description="Last restock date")
     notes: Optional[str] = Field(None, description="Additional notes")
+    subject_to_tariffs: Optional[str] = Field("No", description="Whether part is subject to tariffs (Yes/No)")
+    hts_code: Optional[str] = Field(None, description="Harmonized Tariff Schedule code")
+
+class PendingOrderBase(BaseModel):
+    part_id: str = Field(..., description="Part identifier")
+    supplier_id: Optional[str] = Field(None, description="Supplier identifier")
+    supplier_name: Optional[str] = Field(None, description="Supplier name")
+    order_date: datetime = Field(..., description="Date the order was placed")
+    estimated_delivery_date: Optional[datetime] = Field(None, description="Estimated delivery date")
+    qty: int = Field(..., description="Quantity ordered")
+    unit_cost: float = Field(0.0, description="Unit cost at time of order")
+    payment_date: Optional[datetime] = Field(None, description="Expected payment date")
+    status: str = Field("pending", description="pending|ordered|received|cancelled")
+    po_number: Optional[str] = Field(None, description="Purchase order number")
+    notes: Optional[str] = Field(None, description="Notes")
 
 # Create schemas
 class ProductCreate(ProductBase):
@@ -87,28 +104,28 @@ class InventoryCreate(InventoryBase):
     pass
 
 # Response schemas
-class Product(ProductBase):
+class ProductSchema(ProductBase):
     created_at: datetime
     updated_at: datetime
     
     class Config:
         from_attributes = True
 
-class Part(PartBase):
+class PartSchema(PartBase):
     created_at: datetime
     updated_at: datetime
     
     class Config:
         from_attributes = True
 
-class Supplier(SupplierBase):
+class SupplierSchema(SupplierBase):
     created_at: datetime
     updated_at: datetime
     
     class Config:
         from_attributes = True
 
-class BOM(BOMBase):
+class BOMSchema(BOMBase):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -116,7 +133,7 @@ class BOM(BOMBase):
     class Config:
         from_attributes = True
 
-class Forecast(ForecastBase):
+class ForecastSchema(ForecastBase):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -124,7 +141,7 @@ class Forecast(ForecastBase):
     class Config:
         from_attributes = True
 
-class LeadTime(LeadTimeBase):
+class LeadTimeSchema(LeadTimeBase):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -132,11 +149,22 @@ class LeadTime(LeadTimeBase):
     class Config:
         from_attributes = True
 
-class Inventory(InventoryBase):
+class InventorySchema(InventoryBase):
     id: int
     created_at: datetime
     updated_at: datetime
     
+    class Config:
+        from_attributes = True
+
+class PendingOrderCreate(PendingOrderBase):
+    pass
+
+class PendingOrderSchema(PendingOrderBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
     class Config:
         from_attributes = True
 
@@ -155,6 +183,15 @@ class OrderSchedule(BaseModel):
     status: str = "planned"
     days_until_order: int
     days_until_payment: int
+    # Tariff and logistics detail
+    country_of_origin: Optional[str] = None
+    subject_to_tariffs: Optional[str] = "No"
+    shipping_cost_per_unit: float = 0.0
+    shipping_cost_total: float = 0.0
+    tariff_rate: float = 0.0
+    tariff_amount: float = 0.0
+    base_cost: float = 0.0
+    total_cost_without_tariff: float = 0.0
 
 class SupplierOrderSummary(BaseModel):
     supplier_id: Optional[str] = None
@@ -166,6 +203,9 @@ class SupplierOrderSummary(BaseModel):
     parts: List[str]  # List of part names
     days_until_order: int
     days_until_payment: int
+    # Aggregated tariff/logistics
+    total_tariff_amount: float = 0.0
+    total_shipping_cost: float = 0.0
 
 class CashFlowProjection(BaseModel):
     date: datetime
@@ -181,6 +221,7 @@ class KeyMetrics(BaseModel):
     largest_purchase: float
     total_parts: int
     total_suppliers: int
+    tariff_spend_90d: float = 0.0
 
 # Bulk upload schemas
 class ForecastUpload(BaseModel):
@@ -216,3 +257,67 @@ class KTBOMItem(BaseModel):
 class KTBOMUpload(BaseModel):
     bom_items: List[KTBOMItem]
     product_name: str = Field(..., description="Product name (e.g., 'Shredder')") 
+
+# Tariff quote schemas
+class TariffQuoteRequest(BaseModel):
+    # Core classification & origin
+    hts_code: Optional[str] = Field(None, description="HS/HTS code (6-10 digits as needed)")
+    country_of_origin: str = Field(..., description="Country of origin")
+    importing_country: str = Field("USA", description="Importing country")
+
+    # Customs value
+    invoice_value: float = Field(..., description="Invoice/transaction value in original currency")
+    currency_code: str = Field("USD", description="Currency code of invoice value")
+    fx_rate: float = Field(1.0, description="FX rate to convert to importing country currency (USD if USA)")
+    freight_to_border: float = Field(0.0, description="Freight cost to border")
+    insurance_cost: float = Field(0.0, description="Insurance cost")
+    assists_tooling: float = Field(0.0, description="Assists/tooling value")
+    royalties_fees: float = Field(0.0, description="Royalties and license fees")
+    other_dutiable: float = Field(0.0, description="Other dutiable additions")
+    incoterm: Optional[str] = Field(None, description="Incoterm (e.g., FOB Shanghai, CIF LA)")
+
+    # Quantity & duty unit context
+    quantity: Optional[float] = Field(None, description="Quantity of units")
+    quantity_uom: Optional[str] = Field(None, description="Quantity unit of measure")
+    net_weight_kg: Optional[float] = Field(None, description="Net weight in kg")
+    volume_liters: Optional[float] = Field(None, description="Volume in liters")
+    unit_of_measure_hts: Optional[str] = Field(None, description="Unit of measure used in HTS line")
+
+    # Preference programs & special duties
+    fta_eligible: bool = Field(False, description="Free trade agreement eligibility")
+    fta_program: Optional[str] = Field(None, description="FTA program name")
+    add_cvd_rate_pct: Optional[float] = Field(0.0, description="Anti-dumping or countervailing duty rate (%)")
+    special_duty_surcharge_pct: Optional[float] = Field(0.0, description="Additional special duty surcharge rate (%) such as 301/232")
+
+    # Shipment & entry context
+    entry_date: Optional[datetime] = Field(None, description="Expected entry date")
+    de_minimis: bool = Field(False, description="De minimis flag")
+    port_of_entry: Optional[str] = Field(None, description="Port of entry")
+    transport_mode: Optional[str] = Field(None, description="Transport mode: air, sea, courier")
+
+class TariffQuoteResponse(BaseModel):
+    # Inputs echoed back (helpful for UI)
+    inputs: Dict[str, Optional[str]]
+
+    # Valuation
+    invoice_value_usd: float
+    dutiable_additions: float
+    dutiable_value: float
+
+    # Duty rates
+    base_ad_valorem_rate_pct: float
+    effective_ad_valorem_rate_pct: float
+    add_cvd_rate_pct: float
+    special_surcharge_rate_pct: float
+
+    # Duty and fees
+    ad_valorem_duty: float
+    add_cvd_amount: float
+    special_surcharge_amount: float
+    mpf_amount: float
+    hmf_amount: float
+    total_duties_and_fees: float
+    effective_total_rate_pct: float
+
+    # Notes and breakdown
+    notes: List[str] = Field(default_factory=list)

@@ -69,6 +69,8 @@ class BOM(Base):
     shipping_lead_time = Column(Integer, nullable=True)  # Shipping lead time in days
     country_of_origin = Column(String, nullable=True)  # Country of origin for tariff calculation
     shipping_cost = Column(Float, nullable=True)  # Shipping/logistics cost per unit
+    hts_code = Column(String, nullable=True)  # Harmonized Tariff Schedule code
+    subject_to_tariffs = Column(String, nullable=True, default="No")  # Whether part is subject to tariffs (Yes/No)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -109,9 +111,13 @@ class Order(Base):
     supplier_id = Column(String(50), nullable=True)  # Added supplier_id for aggregation
     supplier_name = Column(String(200), nullable=True)  # Added supplier_name for display
     order_date = Column(DateTime, nullable=False)
+    estimated_delivery_date = Column(DateTime, nullable=True)
     qty = Column(Integer, nullable=False)
-    payment_date = Column(DateTime, nullable=False)
-    status = Column(String(20), default="planned")  # planned, ordered, received
+    unit_cost = Column(Float, default=0.0)
+    payment_date = Column(DateTime, nullable=True)
+    status = Column(String(20), default="pending")  # pending, ordered, received, cancelled
+    po_number = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -134,6 +140,8 @@ class Inventory(Base):
     location = Column(String(100), nullable=True)  # Storage location
     last_restock_date = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
+    subject_to_tariffs = Column(String, nullable=True, default="No")  # Whether part is subject to tariffs (Yes/No)
+    hts_code = Column(String, nullable=True)  # Harmonized Tariff Schedule code
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

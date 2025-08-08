@@ -6,6 +6,11 @@ from sqlalchemy.orm import Session
 from app.models import Product, Part, Supplier, BOM, Forecast, LeadTime, Order, Inventory
 from app.schemas import OrderSchedule, CashFlowProjection, KeyMetrics, SupplierOrderSummary
 from app.tariff_calculator import TariffCalculator
+from app.tariff_utils import (
+    DEFAULT_COUNTRY_OF_ORIGIN_TARIFFED,
+    DEFAULT_HTS_CODE,
+    DEFAULT_IMPORTING_COUNTRY,
+)
 
 class SupplyPlanner:
     """Core planning engine for SupplyXplorer"""
@@ -140,13 +145,25 @@ class SupplyPlanner:
             shipping_lead_time = bom_item.shipping_lead_time or 0
             total_lead_time = manufacturing_lead_time + shipping_lead_time
             
-            # Track running inventory levels
+            # Track running inventory levels, including pending incoming orders that are expected before need date
             running_stock = current_stock
+            # Bring in pending orders for this part within the window
+            try:
+                from app.models import Order as PendingOrder
+                pending_orders = self.db.query(PendingOrder).filter(PendingOrder.part_id == part_id).all()
+            except Exception:
+                pending_orders = []
             
             # Generate orders
             for _, row in period_demand.iterrows():
                 need_date = row['installation_date']
                 demand_qty = row['demand_qty']
+                
+                # Add any pending orders that are expected to arrive before this need date
+                for po in pending_orders:
+                    eta = getattr(po, 'estimated_delivery_date', None)
+                    if eta and eta <= need_date and getattr(po, 'status', 'pending') in ['pending', 'ordered']:
+                        running_stock += int(getattr(po, 'qty', 0))
                 
                 # Calculate net demand (demand - available stock)
                 available_for_demand = max(0, running_stock - safety_stock)
@@ -174,16 +191,36 @@ class SupplyPlanner:
                 ap_terms = bom_item.ap_terms or 30
                 payment_date = order_date + timedelta(days=ap_terms)
                 
-                # Get country of origin and shipping cost for tariff calculation
-                country_of_origin = bom_item.country_of_origin or "USA"
+                # Get country of origin, shipping cost, and tariff eligibility
+                raw_country_of_origin = bom_item.country_of_origin
+                # Keep a display-friendly COO (defaults to USA if unknown)
+                country_of_origin = raw_country_of_origin or "USA"
                 shipping_cost_per_unit = bom_item.shipping_cost or 0.0
-                
+                subject_to_tariffs = (bom_item.subject_to_tariffs or "No")
+
                 # Calculate total cost including tariffs and shipping
+                # Determine effective country for tariff calculation
+                effective_country = (
+                    (raw_country_of_origin or DEFAULT_COUNTRY_OF_ORIGIN_TARIFFED)
+                    if subject_to_tariffs == "Yes"
+                    else "USA"
+                )
+
+                # Choose HTS for tariff calculation; default to stainless fittings when tariffed
+                effective_hts = (
+                    (bom_item.hts_code or DEFAULT_HTS_CODE)
+                    if subject_to_tariffs == "Yes"
+                    else (bom_item.hts_code or None)
+                )
+
                 cost_breakdown = self.tariff_calculator.get_total_cost_with_tariffs(
                     unit_cost=bom_item.unit_cost,
                     quantity=int(order_qty),
-                    country=country_of_origin,
-                    shipping_cost_per_unit=shipping_cost_per_unit
+                    country=effective_country,
+                    shipping_cost_per_unit=shipping_cost_per_unit,
+                    hts_code=effective_hts,
+                    importing_country=DEFAULT_IMPORTING_COUNTRY,
+                    entry_date=None
                 )
                 
                 # Calculate days until order/payment
@@ -204,7 +241,15 @@ class SupplyPlanner:
                     total_cost=cost_breakdown['total_cost'],
                     days_until_order=days_until_order,
                     days_until_payment=days_until_payment,
-                    status="pending"
+                    status="pending",
+                    country_of_origin=country_of_origin,
+                    subject_to_tariffs=subject_to_tariffs,
+                    shipping_cost_per_unit=shipping_cost_per_unit,
+                    shipping_cost_total=cost_breakdown['shipping_cost'],
+                    tariff_rate=cost_breakdown['tariff_rate'],
+                    tariff_amount=cost_breakdown['tariff_amount'],
+                    base_cost=cost_breakdown['base_cost'],
+                    total_cost_without_tariff=(cost_breakdown['base_cost'] + cost_breakdown['shipping_cost'])
                 )
                 
                 order_schedules.append(order_schedule)
@@ -250,6 +295,8 @@ class SupplyPlanner:
             parts_list = [f"{order.part_name} (qty: {order.qty})" for order in group_data['orders']]
             days_until_order = (group_data['order_date'] - now).days
             days_until_payment = (group_data['payment_date'] - now).days
+            total_tariff_amount = sum(getattr(order, 'tariff_amount', 0.0) for order in group_data['orders'])
+            total_shipping_cost = sum(getattr(order, 'shipping_cost_total', 0.0) for order in group_data['orders'])
             
             summary = SupplierOrderSummary(
                 supplier_id=group_data['supplier_id'],
@@ -260,7 +307,9 @@ class SupplyPlanner:
                 total_cost=group_data['total_cost'],
                 parts=parts_list,
                 days_until_order=days_until_order,
-                days_until_payment=days_until_payment
+                days_until_payment=days_until_payment,
+                total_tariff_amount=total_tariff_amount,
+                total_shipping_cost=total_shipping_cost
             )
             
             supplier_summaries.append(summary)
@@ -320,9 +369,13 @@ class SupplyPlanner:
         orders_30d = [o for o in order_schedules if 0 <= o.days_until_order <= 30]
         orders_60d = [o for o in order_schedules if 0 <= o.days_until_order <= 60]
         
-        # Cash out in next 90 days
-        cash_out_90d = sum(o.total_cost for o in order_schedules 
-                          if 0 <= o.days_until_payment <= 90)
+        # Cash out in next 90 days and tariff spend
+        cash_out_90d = 0.0
+        tariff_spend_90d = 0.0
+        for o in order_schedules:
+            if 0 <= o.days_until_payment <= 90:
+                cash_out_90d += o.total_cost
+                tariff_spend_90d += getattr(o, 'tariff_amount', 0.0)
         
         # Largest purchase
         largest_purchase = max((o.total_cost for o in order_schedules), default=0.0)
@@ -346,7 +399,8 @@ class SupplyPlanner:
             cash_out_90d=cash_out_90d,
             largest_purchase=largest_purchase,
             total_parts=total_parts,
-            total_suppliers=total_suppliers
+            total_suppliers=total_suppliers,
+            tariff_spend_90d=tariff_spend_90d
         )
     
     def run_planning_engine(self, start_date: datetime, end_date: datetime) -> Dict:

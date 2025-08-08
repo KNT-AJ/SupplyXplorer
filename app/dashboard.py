@@ -171,6 +171,8 @@ app.layout = dbc.Container([
                     ]),
                     # Order Summary Cards
                     html.Div(id="order-summary-cards", className="mb-3"),
+                    # Tariff Summary
+                    html.Div(id="tariff-summary"),
                     html.Div(id="order-schedule-display")
                 ])
             ], className="mb-4"),
@@ -300,7 +302,198 @@ app.layout = dbc.Container([
                     html.Div(id="inventory-data-table")
                 ])
             ])
-        ], label="Inventory", tab_id="inventory")
+        ], label="Inventory", tab_id="inventory"),
+        dbc.Tab([
+            # Pending Orders Management
+            dbc.Row([
+                dbc.Col([
+                    html.H4("Pending Orders", className="mb-3"),
+                    html.P("Track supplier POs that are placed or expected. These count as incoming supply for planning.", className="text-muted mb-3"),
+                    dbc.Row([
+                        dbc.Col([
+                            html.H6("Upload Invoice/Quote PDF"),
+                            dcc.Upload(
+                                id='upload-pending-orders-pdf',
+                                children=html.Div(['Drag and Drop or ', html.A('Select PDF')]),
+                                style={
+                                    'width': '100%',
+                                    'height': '60px',
+                                    'lineHeight': '60px',
+                                    'borderWidth': '1px',
+                                    'borderStyle': 'dashed',
+                                    'borderRadius': '5px',
+                                    'textAlign': 'center',
+                                    'margin': '10px'
+                                },
+                                multiple=False
+                            ),
+                            html.Div(id='upload-pending-orders-pdf-output', className="mb-3")
+                        ], width=12)
+                    ]),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Button("Refresh", id="refresh-pending-orders-btn", color="primary", className="mb-2 w-100")
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Button("Save Changes", id="save-pending-orders-btn", color="success", className="mb-2 w-100")
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Button("Export CSV", id="export-pending-orders-btn", color="info", outline=True, className="mb-2 w-100")
+                        ], width=3),
+                        dbc.Col([
+                            html.Div(id="pending-orders-save-status", className="mb-2")
+                        ], width=3),
+                    ]),
+                    html.Div(id="pending-orders-table")
+                ])
+            ])
+        ], label="Pending Orders", tab_id="pending-orders"),
+        dbc.Tab([
+            # Tariff Calculator
+            dbc.Row([
+                dbc.Col([
+                    html.H4("Tariff Calculator", className="mb-3"),
+                    html.P("Enter shipment details to estimate U.S. import duties and fees.", className="text-muted"),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("HTS Code"),
+                            dcc.Input(id='tc-hts', type='text', placeholder='e.g., 8501.10.40', className='w-100')
+                        ], width=4),
+                        dbc.Col([
+                            dbc.Label("Country of Origin"),
+                            dcc.Input(id='tc-coo', type='text', placeholder='e.g., China', className='w-100')
+                        ], width=4),
+                        dbc.Col([
+                            dbc.Label("Importing Country"),
+                            dcc.Input(id='tc-importing', type='text', value='USA', className='w-100')
+                        ], width=4)
+                    ], className='mb-3'),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Invoice Value"),
+                            dcc.Input(id='tc-invoice', type='number', value=0, step=0.01, className='w-100')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Currency"),
+                            dcc.Input(id='tc-currency', type='text', value='USD', className='w-100')
+                        ], width=2),
+                        dbc.Col([
+                            dbc.Label("FX Rate"),
+                            dcc.Input(id='tc-fx', type='number', value=1.0, step=0.0001, className='w-100')
+                        ], width=2),
+                        dbc.Col([
+                            dbc.Label("Incoterm"),
+                            dcc.Dropdown(id='tc-incoterm', options=[
+                                {'label': 'FOB (Origin)', 'value': 'FOB'},
+                                {'label': 'CIF (Destination)', 'value': 'CIF'},
+                                {'label': 'EXW', 'value': 'EXW'},
+                                {'label': 'DAP', 'value': 'DAP'}
+                            ], placeholder='Select')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Entry Date"),
+                            dcc.DatePickerSingle(id='tc-entry-date')
+                        ], width=2)
+                    ], className='mb-3'),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Freight to Border"),
+                            dcc.Input(id='tc-freight', type='number', value=0.0, step=0.01, className='w-100')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Insurance Cost"),
+                            dcc.Input(id='tc-insurance', type='number', value=0.0, step=0.01, className='w-100')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Assists/Tooling"),
+                            dcc.Input(id='tc-assists', type='number', value=0.0, step=0.01, className='w-100')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Royalties/Fees"),
+                            dcc.Input(id='tc-royalties', type='number', value=0.0, step=0.01, className='w-100')
+                        ], width=3)
+                    ], className='mb-3'),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Other Dutiable Additions"),
+                            dcc.Input(id='tc-other', type='number', value=0.0, step=0.01, className='w-100')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Quantity"),
+                            dcc.Input(id='tc-qty', type='number', className='w-100')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Net Weight (kg)"),
+                            dcc.Input(id='tc-weight', type='number', className='w-100')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Volume (L)"),
+                            dcc.Input(id='tc-volume', type='number', className='w-100')
+                        ], width=3)
+                    ], className='mb-3'),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Checklist(options=[{"label": "FTA Eligible", "value": 1}], value=[], id='tc-fta', switch=True)
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("FTA Program"),
+                            dcc.Input(id='tc-fta-program', type='text', placeholder='e.g., USMCA', className='w-100')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("ADD/CVD Rate %"),
+                            dcc.Input(id='tc-addcvd', type='number', value=0.0, step=0.1, className='w-100')
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Special Surcharge % (e.g., 301/232)"),
+                            dcc.Input(id='tc-special', type='number', value=0.0, step=0.1, className='w-100')
+                        ], width=3)
+                    ], className='mb-3'),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Transport Mode"),
+                            dcc.Dropdown(id='tc-transport', options=[
+                                {'label': 'Sea (Vessel)', 'value': 'sea'},
+                                {'label': 'Air', 'value': 'air'},
+                                {'label': 'Courier/Express', 'value': 'courier'}
+                            ], placeholder='Select')
+                        ], width=4),
+                        dbc.Col([
+                            dbc.Label("Port of Entry"),
+                            dcc.Input(id='tc-port', type='text', placeholder='e.g., LAX, LGB', className='w-100')
+                        ], width=4),
+                        dbc.Col([
+                            dbc.Checklist(options=[{"label": "De Minimis", "value": 1}], value=[], id='tc-deminimis', switch=True)
+                        ], width=4)
+                    ], className='mb-3'),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Button("Get Tariff Quote", id='tc-quote-btn', color='primary', className='w-100')
+                        ], width=3)
+                    ], className='mb-3'),
+                    html.Div(id='tc-quote-output')
+                ], width=12)
+            ], className='mb-4'),
+
+            # Tariff Settings
+            dbc.Row([
+                dbc.Col([
+                    html.Hr(),
+                    html.H4("Tariff Settings", className="mb-3"),
+                    html.P("Manage tariff rates by country and default rate. Upload a JSON file named tariff_rates.json to override.", className="text-muted"),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Default Tariff Rate (%) for Unknown Countries"),
+                            dcc.Input(id='tariff-default-rate', type='number', value=3.0, step=0.5)
+                        ], width=6)
+                    ], className="mb-3"),
+                    html.Div(id='tariff-settings-status', className='mb-3'),
+                    html.H5("Upload tariff_rates.json"),
+                    dcc.Upload(id='upload-tariff-json', children=html.Div(['Drag/Drop or ', html.A('Select JSON')]), multiple=False,
+                               style={'width': '100%', 'height': '60px','lineHeight': '60px','borderWidth': '1px','borderStyle': 'dashed','borderRadius': '5px','textAlign': 'center','margin': '10px'}),
+                    html.Div(id='upload-tariff-json-output')
+                ], width=12)
+            ])
+        ], label="Tariffs", tab_id="tariffs")
     ], id="tabs", active_tab="data-planning"),
     dcc.Store(id='planning-results-store'),
     
@@ -309,7 +502,8 @@ app.layout = dbc.Container([
     dcc.Download(id="download-cashflow"),
     dcc.Download(id="download-bom"),
     dcc.Download(id="download-forecast"),
-    dcc.Download(id="download-inventory")
+    dcc.Download(id="download-inventory"),
+    dcc.Download(id="download-pending-orders")
 ], fluid=True)
 
 # Callbacks
@@ -384,6 +578,27 @@ def upload_forecast(contents, filename):
                 html.P(str(e), className="upload-error")
             ])
     return ""
+
+@app.callback(
+    Output('upload-tariff-json-output', 'children'),
+    Input('upload-tariff-json', 'contents'),
+    State('upload-tariff-json', 'filename')
+)
+def upload_tariff_json(contents, filename):
+    if contents is None:
+        return ""
+    try:
+        import base64, io, json
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+        # Validate JSON
+        cfg = json.loads(decoded.decode('utf-8'))
+        resp = requests.post(f"{API_BASE}/tariff-config", json=cfg, timeout=10)
+        if resp.status_code == 200:
+            return dbc.Alert("Tariff configuration saved.", color="success", duration=3000)
+        return dbc.Alert(f"Save failed: {resp.text}", color="danger", duration=5000)
+    except Exception as e:
+        return dbc.Alert(f"Error: {str(e)}", color="danger", duration=5000)
 
 @app.callback(
     Output('upload-bom-output', 'children'),
@@ -483,7 +698,8 @@ def upload_inventory(contents, filename):
 @app.callback(
     [Output('bom-data-table', 'children', allow_duplicate=True),
      Output('forecast-data-table', 'children', allow_duplicate=True),
-     Output('inventory-data-table', 'children', allow_duplicate=True)],
+     Output('inventory-data-table', 'children', allow_duplicate=True),
+     Output('pending-orders-table', 'children', allow_duplicate=True)],
     Input('tabs', 'active_tab'),
     prevent_initial_call=True
 )
@@ -492,6 +708,7 @@ def initialize_tab_content(active_tab):
     bom_content = ""
     forecast_content = ""
     inventory_content = ""
+    pending_orders_content = ""
     
     if active_tab == "bom-data":
         try:
@@ -517,15 +734,26 @@ def initialize_tab_content(active_tab):
                             {"name": "Part Name", "id": "part_name", "editable": True},
                             {"name": "Quantity", "id": "quantity", "editable": True, "type": "numeric"},
                             {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
+                            {"name": "Country of Origin", "id": "country_of_origin", "editable": True},
+                            {"name": "Shipping Cost (per unit)", "id": "shipping_cost", "editable": True, "type": "numeric"},
                             {"name": "Supplier ID", "id": "supplier_id", "editable": True},
                             {"name": "Supplier Name", "id": "supplier_name", "editable": True},
                             {"name": "Manufacturer", "id": "manufacturer", "editable": True},
                             {"name": "AP Terms", "id": "ap_terms", "editable": True, "type": "numeric"},
                             {"name": "Mfg Lead Time", "id": "manufacturing_lead_time", "editable": True, "type": "numeric"},
-                            {"name": "Ship Lead Time", "id": "shipping_lead_time", "editable": True, "type": "numeric"}
+                            {"name": "Ship Lead Time", "id": "shipping_lead_time", "editable": True, "type": "numeric"},
+                            {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"}
                         ],
                         editable=True,
                         row_deletable=True,
+                        dropdown={
+                            'subject_to_tariffs': {
+                                'options': [
+                                    {'label': 'Yes', 'value': 'Yes'},
+                                    {'label': 'No', 'value': 'No'}
+                                ]
+                            }
+                        },
                         style_table={'overflowX': 'auto'},
                         style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '150px'},
                         style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
@@ -619,10 +847,20 @@ def initialize_tab_content(active_tab):
                                 {"name": "Supplier ID", "id": "supplier_id", "editable": True},
                                 {"name": "Supplier Name", "id": "supplier_name", "editable": True},
                                 {"name": "Location", "id": "location", "editable": True},
+                                {"name": "HTS Code", "id": "hts_code", "editable": True},
+                                {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
                                 {"name": "Notes", "id": "notes", "editable": True}
                             ],
                             editable=True,
                             row_deletable=True,
+                            dropdown={
+                                'subject_to_tariffs': {
+                                    'options': [
+                                        {'label': 'Yes', 'value': 'Yes'},
+                                        {'label': 'No', 'value': 'No'}
+                                    ]
+                                }
+                            },
                             style_table={'overflowX': 'auto'},
                             style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
                             style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
@@ -657,6 +895,8 @@ def initialize_tab_content(active_tab):
                                 {"name": "Supplier ID", "id": "supplier_id", "editable": True},
                                 {"name": "Supplier Name", "id": "supplier_name", "editable": True},
                                 {"name": "Location", "id": "location", "editable": True},
+                                {"name": "HTS Code", "id": "hts_code", "editable": True},
+                                {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
                                 {"name": "Notes", "id": "notes", "editable": True}
                             ],
                             editable=True,
@@ -720,8 +960,56 @@ def initialize_tab_content(active_tab):
                     style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
                 )
             ])
-    
-    return bom_content, forecast_content, inventory_content
+    if active_tab == "pending-orders":
+        try:
+            response = requests.get(f"{API_BASE}/orders/pending")
+            if response.status_code == 200:
+                orders = response.json()
+                df = pd.DataFrame(orders) if orders else pd.DataFrame(columns=[
+                    'id','part_id','supplier_id','supplier_name','order_date','estimated_delivery_date','qty','unit_cost','payment_date','status','po_number','notes'
+                ])
+                for col in ['order_date','estimated_delivery_date','payment_date','created_at','updated_at']:
+                    if col in df.columns:
+                        df[col] = pd.to_datetime(df[col]).dt.strftime('%Y-%m-%d')
+                pending_orders_content = dash_table.DataTable(
+                    id='pending-orders-editable-table',
+                    data=df.to_dict('records'),
+                    columns=[
+                        {"name": "ID", "id": "id", "editable": False},
+                        {"name": "Part ID", "id": "part_id", "editable": True},
+                        {"name": "Supplier ID", "id": "supplier_id", "editable": True},
+                        {"name": "Supplier Name", "id": "supplier_name", "editable": True},
+                        {"name": "Order Date", "id": "order_date", "editable": True, "type": "datetime"},
+                        {"name": "ETA", "id": "estimated_delivery_date", "editable": True, "type": "datetime"},
+                        {"name": "Qty", "id": "qty", "editable": True, "type": "numeric"},
+                        {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
+                        {"name": "Payment Date", "id": "payment_date", "editable": True, "type": "datetime"},
+                        {"name": "Status", "id": "status", "editable": True, "presentation": "dropdown"},
+                        {"name": "PO #", "id": "po_number", "editable": True},
+                        {"name": "Notes", "id": "notes", "editable": True},
+                    ],
+                    editable=True,
+                    row_deletable=True,
+                    dropdown={
+                        'status': {
+                            'options': [
+                                {'label': 'pending', 'value': 'pending'},
+                                {'label': 'ordered', 'value': 'ordered'},
+                                {'label': 'received', 'value': 'received'},
+                                {'label': 'cancelled', 'value': 'cancelled'},
+                            ]
+                        }
+                    },
+                    style_table={'overflowX': 'auto'},
+                    style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                    style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
+                )
+            else:
+                pending_orders_content = html.Div("Error loading pending orders", style={'color': 'red'})
+        except Exception as e:
+            pending_orders_content = html.Div(f"Error: {str(e)}", style={'color': 'red'})
+
+    return bom_content, forecast_content, inventory_content, pending_orders_content
 
 @app.callback(
     Output('planning-status', 'children'),
@@ -825,6 +1113,14 @@ def update_key_metrics(data, start_date, end_date):
                                 html.P("Largest Purchase", className="mb-0", style={'color': 'var(--knt-gray-600)'})
                             ])
                         ], className="metrics-card")
+                    ], width=3),
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H3(f"${metrics.get('tariff_spend_90d', 0):,.0f}", style={'color': '#dc3545'}),
+                                html.P("Tariff Spend 90 Days", className="mb-0", style={'color': 'var(--knt-gray-600)'})
+                            ])
+                        ], className="metrics-card")
                     ], width=3)
                 ])
             else:
@@ -866,6 +1162,11 @@ def update_order_schedule(data, view_type, start_date, end_date):
                     df['order_date'] = pd.to_datetime(df['order_date']).dt.strftime('%Y-%m-%d')
                     df['payment_date'] = pd.to_datetime(df['payment_date']).dt.strftime('%Y-%m-%d')
                     df['total_cost'] = df['total_cost'].apply(lambda x: f"${x:,.2f}")
+                    # Dollar formatting for tariff/shipping columns if present
+                    if 'total_tariff_amount' in df.columns:
+                        df['total_tariff_amount'] = df['total_tariff_amount'].apply(lambda x: f"${x:,.2f}")
+                    if 'total_shipping_cost' in df.columns:
+                        df['total_shipping_cost'] = df['total_shipping_cost'].apply(lambda x: f"${x:,.2f}")
                     
                     if view_type == "aggregated":
                         # Aggregated supplier view
@@ -879,6 +1180,8 @@ def update_order_schedule(data, view_type, start_date, end_date):
                                 {"name": "Order Date", "id": "order_date"},
                                 {"name": "Parts Count", "id": "total_parts"},
                                 {"name": "Total Cost", "id": "total_cost"},
+                            {"name": "Tariffs", "id": "total_tariff_amount"},
+                            {"name": "Shipping", "id": "total_shipping_cost"},
                                 {"name": "Payment Date", "id": "payment_date"},
                                 {"name": "Days to Order", "id": "days_until_order"},
                                 {"name": "Days to Payment", "id": "days_until_payment"}
@@ -904,9 +1207,22 @@ def update_order_schedule(data, view_type, start_date, end_date):
                             {"name": "Qty", "id": "qty"},
                             {"name": "Unit Cost", "id": "unit_cost"},
                             {"name": "Total Cost", "id": "total_cost"},
+                            {"name": "Tariff $", "id": "tariff_amount"},
+                            {"name": "Tariff %", "id": "tariff_rate"},
+                            {"name": "Shipping $", "id": "shipping_cost_total"},
+                            {"name": "Origin", "id": "country_of_origin"},
+                            {"name": "Tariffs?", "id": "subject_to_tariffs"},
                             {"name": "Payment Date", "id": "payment_date"}
                         ])
                         
+                        # Dollar formatting for detailed view
+                        if 'tariff_amount' in df.columns:
+                            df['tariff_amount'] = df['tariff_amount'].apply(lambda x: f"${x:,.2f}")
+                        if 'shipping_cost_total' in df.columns:
+                            df['shipping_cost_total'] = df['shipping_cost_total'].apply(lambda x: f"${x:,.2f}")
+                        if 'unit_cost' in df.columns:
+                            df['unit_cost'] = df['unit_cost'].apply(lambda x: f"${x:,.2f}")
+
                         return dash_table.DataTable(
                             data=df.to_dict('records'),
                             columns=columns,
@@ -920,6 +1236,43 @@ def update_order_schedule(data, view_type, start_date, end_date):
                 return html.Div(f"Error loading orders: {response.status_code}", style={'color': 'red'})
         except Exception as e:
             return html.Div(f"Error: {str(e)}", style={'color': 'red'})
+    return ""
+
+@app.callback(
+    Output('tariff-summary', 'children'),
+    Input('planning-results-store', 'data'),
+    State('start-date', 'date'),
+    State('end-date', 'date')
+)
+def update_tariff_summary(data, start_date, end_date):
+    if data:
+        try:
+            start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
+            end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
+            detailed = requests.get(f"{API_BASE}/orders", params={'start_date': start_dt.isoformat(), 'end_date': end_dt.isoformat()})
+            if detailed.status_code == 200:
+                orders = detailed.json()
+                if orders:
+                    df = pd.DataFrame(orders)
+                    total_tariffs = float(df.get('tariff_amount', pd.Series([0])).sum())
+                    total_shipping = float(df.get('shipping_cost_total', pd.Series([0])).sum())
+                    impacted_parts = int((df.get('subject_to_tariffs') == 'Yes').sum()) if 'subject_to_tariffs' in df.columns else 0
+                    return dbc.Row([
+                        dbc.Col(dbc.Card(dbc.CardBody([
+                            html.H6("Tariff Spend (All)", className="mb-1"),
+                            html.H3(f"${total_tariffs:,.0f}", className="text-danger")
+                        ])), width=3),
+                        dbc.Col(dbc.Card(dbc.CardBody([
+                            html.H6("Shipping Spend (All)", className="mb-1"),
+                            html.H3(f"${total_shipping:,.0f}", className="text-info")
+                        ])), width=3),
+                        dbc.Col(dbc.Card(dbc.CardBody([
+                            html.H6("Parts Impacted by Tariffs", className="mb-1"),
+                            html.H3(f"{impacted_parts:,}", className="text-warning")
+                        ])), width=3)
+                    ])
+        except Exception:
+            pass
     return ""
 
 @app.callback(
@@ -1007,6 +1360,157 @@ def update_order_summary(data, view_type, start_date, end_date):
             return html.Div(f"Error loading summary: {str(e)}", style={'color': 'red'})
     
     return ""
+
+@app.callback(
+    Output('pending-orders-table', 'children'),
+    [Input('refresh-pending-orders-btn', 'n_clicks')],
+    prevent_initial_call=True
+)
+def refresh_pending_orders(n_clicks):
+    try:
+        response = requests.get(f"{API_BASE}/orders/pending")
+        if response.status_code == 200:
+            orders = response.json()
+            df = pd.DataFrame(orders) if orders else pd.DataFrame(columns=[
+                'id','part_id','supplier_id','supplier_name','order_date','estimated_delivery_date','qty','unit_cost','payment_date','status','po_number','notes'
+            ])
+            for col in ['order_date','estimated_delivery_date','payment_date','created_at','updated_at']:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col]).dt.strftime('%Y-%m-%d')
+            return dash_table.DataTable(
+                id='pending-orders-editable-table',
+                data=df.to_dict('records'),
+                columns=[
+                    {"name": "ID", "id": "id", "editable": False},
+                    {"name": "Part ID", "id": "part_id", "editable": True},
+                    {"name": "Supplier ID", "id": "supplier_id", "editable": True},
+                    {"name": "Supplier Name", "id": "supplier_name", "editable": True},
+                    {"name": "Order Date", "id": "order_date", "editable": True, "type": "datetime"},
+                    {"name": "ETA", "id": "estimated_delivery_date", "editable": True, "type": "datetime"},
+                    {"name": "Qty", "id": "qty", "editable": True, "type": "numeric"},
+                    {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
+                    {"name": "Payment Date", "id": "payment_date", "editable": True, "type": "datetime"},
+                    {"name": "Status", "id": "status", "editable": True, "presentation": "dropdown"},
+                    {"name": "PO #", "id": "po_number", "editable": True},
+                    {"name": "Notes", "id": "notes", "editable": True},
+                ],
+                editable=True,
+                row_deletable=True,
+                dropdown={
+                    'status': {
+                        'options': [
+                            {'label': 'pending', 'value': 'pending'},
+                            {'label': 'ordered', 'value': 'ordered'},
+                            {'label': 'received', 'value': 'received'},
+                            {'label': 'cancelled', 'value': 'cancelled'},
+                        ]
+                    }
+                },
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
+            )
+        else:
+            return html.Div("Error loading pending orders", style={'color': 'red'})
+    except Exception as e:
+        return html.Div(f"Error: {str(e)}", style={'color': 'red'})
+
+@app.callback(
+    Output('upload-pending-orders-pdf-output', 'children'),
+    Input('upload-pending-orders-pdf', 'contents'),
+    State('upload-pending-orders-pdf', 'filename'),
+    prevent_initial_call=True
+)
+def handle_upload_pending_orders_pdf(contents, filename):
+    if contents is None:
+        return dash.no_update
+    try:
+        import base64
+        header, b64data = contents.split(',')
+        pdf_bytes = base64.b64decode(b64data)
+        files = {'file': (filename or 'pending.pdf', pdf_bytes, 'application/pdf')}
+        r = requests.post(f"{API_BASE}/orders/pending/upload-pdf", files=files, timeout=60)
+        if r.status_code == 200:
+            data = r.json()
+            inserted = data.get('inserted', [])
+            errors = data.get('errors', [])
+            msg = f"Inserted {len(inserted)} orders from {filename}."
+            if errors:
+                msg += f" Warnings: {min(len(errors), 3)} (details in console)."
+                print('PDF extraction warnings:', errors)
+            return dbc.Alert(msg, color="success")
+        else:
+            return dbc.Alert(f"Upload failed: {r.status_code} {r.text}", color="danger")
+    except Exception as e:
+        return dbc.Alert(f"Error: {str(e)}", color="danger")
+
+@app.callback(
+    Output('pending-orders-save-status', 'children'),
+    Input('save-pending-orders-btn', 'n_clicks'),
+    State('pending-orders-editable-table', 'data'),
+    prevent_initial_call=True
+)
+def save_pending_orders(n_clicks, table_data):
+    if not n_clicks:
+        return ""
+    try:
+        # Upsert each row
+        saved = 0
+        present_ids = set()
+        for row in (table_data or []):
+            payload = {
+                'part_id': row.get('part_id',''),
+                'supplier_id': row.get('supplier_id'),
+                'supplier_name': row.get('supplier_name'),
+                'order_date': row.get('order_date'),
+                'estimated_delivery_date': row.get('estimated_delivery_date'),
+                'qty': int(row.get('qty', 0) or 0),
+                'unit_cost': float(row.get('unit_cost', 0) or 0.0),
+                'payment_date': row.get('payment_date'),
+                'status': row.get('status') or 'pending',
+                'po_number': row.get('po_number'),
+                'notes': row.get('notes')
+            }
+            order_id = row.get('id')
+            if order_id:
+                present_ids.add(order_id)
+                r = requests.put(f"{API_BASE}/orders/pending/{order_id}", json=payload)
+            else:
+                r = requests.post(f"{API_BASE}/orders/pending", json=payload)
+                if r.status_code in [200, 201]:
+                    try:
+                        present_ids.add(r.json().get('id'))
+                    except Exception:
+                        pass
+            if r.status_code in [200,201]:
+                saved += 1
+        # Delete orders that were removed from the table
+        try:
+            existing = requests.get(f"{API_BASE}/orders/pending")
+            if existing.status_code == 200:
+                existing_ids = {row.get('id') for row in (existing.json() or [])}
+                to_delete = [oid for oid in existing_ids if oid and oid not in present_ids]
+                for oid in to_delete:
+                    requests.delete(f"{API_BASE}/orders/pending/{oid}")
+        except Exception:
+            pass
+        return dbc.Alert(f"Saved {saved} pending orders", color="success", duration=3000)
+    except Exception as e:
+        return dbc.Alert(f"Error: {str(e)}", color="danger", duration=5000)
+
+@app.callback(
+    Output('download-pending-orders', 'data'),
+    Input('export-pending-orders-btn', 'n_clicks'),
+    prevent_initial_call=True
+)
+def export_pending_orders(n_clicks):
+    try:
+        resp = requests.get(f"{API_BASE}/export/orders-pending")
+        if resp.status_code == 200:
+            return dict(content=resp.content.decode('utf-8'), filename='pending_orders.csv')
+        return None
+    except Exception:
+        return None
 
 @app.callback(
     Output('cash-flow-chart', 'figure'),
@@ -1177,16 +1681,27 @@ def update_bom_table(n_clicks):
                         {"name": "Quantity", "id": "quantity", "editable": True, "type": "numeric"},
                         {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
                         {"name": "Cost per Product", "id": "cost_per_product", "editable": True, "type": "numeric"},
+                        {"name": "Country of Origin", "id": "country_of_origin", "editable": True},
+                        {"name": "Shipping Cost (per unit)", "id": "shipping_cost", "editable": True, "type": "numeric"},
                         {"name": "Beginning Inventory", "id": "beginning_inventory", "editable": True, "type": "numeric"},
                         {"name": "Supplier ID", "id": "supplier_id", "editable": True},
                         {"name": "Supplier Name", "id": "supplier_name", "editable": True},
                         {"name": "Manufacturer", "id": "manufacturer", "editable": True},
                         {"name": "AP Terms", "id": "ap_terms", "editable": True, "type": "numeric"},
                         {"name": "Manufacturing Lead Time", "id": "manufacturing_lead_time", "editable": True, "type": "numeric"},
-                        {"name": "Shipping Lead Time", "id": "shipping_lead_time", "editable": True, "type": "numeric"}
+                        {"name": "Shipping Lead Time", "id": "shipping_lead_time", "editable": True, "type": "numeric"},
+                        {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"}
                     ],
                     editable=True,
                     row_deletable=True,
+                    dropdown={
+                        'subject_to_tariffs': {
+                            'options': [
+                                {'label': 'Yes', 'value': 'Yes'},
+                                {'label': 'No', 'value': 'No'}
+                            ]
+                        }
+                    },
                     style_table={'overflowX': 'auto'},
                     style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '100px'},
                     style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
@@ -1231,12 +1746,15 @@ def save_bom_data(n_clicks, table_data):
                 'unit_cost': float(row.get('unit_cost', 0)) if row.get('unit_cost') else 0.0,
                 'cost_per_product': float(row.get('cost_per_product', 0)) if row.get('cost_per_product') else 0.0,
                 'beginning_inventory': int(row.get('beginning_inventory', 0)) if row.get('beginning_inventory') else 0,
+                'country_of_origin': row.get('country_of_origin'),
+                'shipping_cost': float(row.get('shipping_cost', 0)) if row.get('shipping_cost') else 0.0,
                 'supplier_id': row.get('supplier_id'),
                 'supplier_name': row.get('supplier_name'),
                 'manufacturer': row.get('manufacturer'),
                 'ap_terms': int(row.get('ap_terms')) if row.get('ap_terms') else None,
                 'manufacturing_lead_time': int(row.get('manufacturing_lead_time')) if row.get('manufacturing_lead_time') else None,
-                'shipping_lead_time': int(row.get('shipping_lead_time')) if row.get('shipping_lead_time') else None
+                'shipping_lead_time': int(row.get('shipping_lead_time')) if row.get('shipping_lead_time') else None,
+                'subject_to_tariffs': row.get('subject_to_tariffs', 'No')
             }
             bom_data.append(bom_record)
         
@@ -1376,11 +1894,21 @@ def update_inventory_table(n_clicks):
                             {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
                             {"name": "Supplier ID", "id": "supplier_id", "editable": True},
                             {"name": "Supplier Name", "id": "supplier_name", "editable": True},
-                            {"name": "Location", "id": "location", "editable": True},
+                                {"name": "Location", "id": "location", "editable": True},
+                                {"name": "HTS Code", "id": "hts_code", "editable": True},
+                            {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
                             {"name": "Notes", "id": "notes", "editable": True}
                         ],
                         editable=True,
                         row_deletable=True,
+                        dropdown={
+                            'subject_to_tariffs': {
+                                'options': [
+                                    {'label': 'Yes', 'value': 'Yes'},
+                                    {'label': 'No', 'value': 'No'}
+                                ]
+                            }
+                        },
                         style_table={'overflowX': 'auto'},
                         style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
                         style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
@@ -1415,6 +1943,7 @@ def update_inventory_table(n_clicks):
                             {"name": "Supplier ID", "id": "supplier_id", "editable": True},
                             {"name": "Supplier Name", "id": "supplier_name", "editable": True},
                             {"name": "Location", "id": "location", "editable": True},
+                            {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
                             {"name": "Notes", "id": "notes", "editable": True}
                         ],
                         editable=True,
@@ -1469,6 +1998,7 @@ def update_inventory_table(n_clicks):
                     {"name": "Supplier ID", "id": "supplier_id", "editable": True},
                     {"name": "Supplier Name", "id": "supplier_name", "editable": True},
                     {"name": "Location", "id": "location", "editable": True},
+                    {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
                     {"name": "Notes", "id": "notes", "editable": True}
                 ],
                 editable=True,
@@ -1512,6 +2042,7 @@ def save_inventory_data(n_clicks, table_data):
                 'supplier_id': row.get('supplier_id'),
                 'supplier_name': row.get('supplier_name'),
                 'location': row.get('location'),
+                'subject_to_tariffs': row.get('subject_to_tariffs', 'No'),
                 'notes': row.get('notes')
             }
             inventory_data.append(inventory_record)
@@ -1582,6 +2113,101 @@ def export_orders_csv(n_clicks, start_date, end_date, view_type):
             print(f"Error exporting orders: {e}")
     return None
 
+# Tariff Calculator callbacks
+@app.callback(
+    Output('tc-quote-output', 'children'),
+    Input('tc-quote-btn', 'n_clicks'),
+    State('tc-hts', 'value'),
+    State('tc-coo', 'value'),
+    State('tc-importing', 'value'),
+    State('tc-invoice', 'value'),
+    State('tc-currency', 'value'),
+    State('tc-fx', 'value'),
+    State('tc-incoterm', 'value'),
+    State('tc-entry-date', 'date'),
+    State('tc-freight', 'value'),
+    State('tc-insurance', 'value'),
+    State('tc-assists', 'value'),
+    State('tc-royalties', 'value'),
+    State('tc-other', 'value'),
+    State('tc-qty', 'value'),
+    State('tc-weight', 'value'),
+    State('tc-volume', 'value'),
+    State('tc-fta', 'value'),
+    State('tc-fta-program', 'value'),
+    State('tc-addcvd', 'value'),
+    State('tc-special', 'value'),
+    State('tc-transport', 'value'),
+    State('tc-port', 'value'),
+    prevent_initial_call=True
+)
+def get_tariff_quote(n_clicks, hts, coo, importing, invoice, currency, fx, incoterm, entry_date,
+                     freight, insurance, assists, royalties, other, qty, weight, volume, fta_vals,
+                     fta_program, addcvd, special, transport, port):
+    if not n_clicks:
+        return ""
+    try:
+        payload = {
+            'hts_code': hts,
+            'country_of_origin': coo,
+            'importing_country': importing or 'USA',
+            'invoice_value': float(invoice or 0.0),
+            'currency_code': currency or 'USD',
+            'fx_rate': float(fx or 1.0),
+            'freight_to_border': float(freight or 0.0),
+            'insurance_cost': float(insurance or 0.0),
+            'assists_tooling': float(assists or 0.0),
+            'royalties_fees': float(royalties or 0.0),
+            'other_dutiable': float(other or 0.0),
+            'incoterm': incoterm,
+            'quantity': float(qty) if qty is not None else None,
+            'net_weight_kg': float(weight) if weight is not None else None,
+            'volume_liters': float(volume) if volume is not None else None,
+            'fta_eligible': bool(fta_vals) and len(fta_vals) > 0,
+            'fta_program': fta_program,
+            'add_cvd_rate_pct': float(addcvd or 0.0),
+            'special_duty_surcharge_pct': float(special or 0.0),
+            'entry_date': entry_date,
+            'port_of_entry': port,
+            'transport_mode': transport,
+            'de_minimis': False
+        }
+        resp = requests.post(f"{API_BASE}/tariff/quote", json=payload, timeout=10)
+        if resp.status_code != 200:
+            return dbc.Alert(f"Quote failed: {resp.text}", color='danger')
+        q = resp.json()
+        # Nicely format
+        rows = [
+            ("Invoice Value (USD)", q['invoice_value_usd']),
+            ("Dutiable Additions", q['dutiable_additions']),
+            ("Dutiable Value", q['dutiable_value']),
+            ("Base Ad-Valorem %", q['base_ad_valorem_rate_pct']),
+            ("Effective Ad-Valorem %", q['effective_ad_valorem_rate_pct']),
+            ("ADD/CVD %", q['add_cvd_rate_pct']),
+            ("Special Surcharge %", q['special_surcharge_rate_pct']),
+            ("Ad-Valorem Duty", q['ad_valorem_duty']),
+            ("ADD/CVD Amount", q['add_cvd_amount']),
+            ("Special Surcharge Amount", q['special_surcharge_amount']),
+            ("MPF", q['mpf_amount']),
+            ("HMF", q['hmf_amount']),
+            ("Total Duties & Fees", q['total_duties_and_fees']),
+            ("Effective Total %", q['effective_total_rate_pct'])
+        ]
+        table = dash_table.DataTable(
+            data=[{"Metric": k, "Amount": (f"${v:,.2f}" if isinstance(v, (int, float)) else v)} for k, v in rows],
+            columns=[{"name": "Metric", "id": "Metric"}, {"name": "Amount", "id": "Amount"}],
+            style_cell={'textAlign': 'left', 'padding': '8px'},
+            style_header={'backgroundColor': 'rgb(230,230,230)', 'fontWeight': 'bold'},
+        )
+        notes = q.get('notes', [])
+        notes_el = html.Ul([html.Li(n) for n in notes]) if notes else ""
+        return html.Div([
+            html.H5("Quote Results", className='mb-2'),
+            table,
+            html.Div(notes_el, className='mt-3')
+        ])
+    except Exception as e:
+        return dbc.Alert(f"Error: {str(e)}", color='danger')
 @app.callback(
     Output('download-cashflow', 'data'),
     Input('export-cashflow-btn', 'n_clicks'),
