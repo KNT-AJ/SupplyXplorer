@@ -24,8 +24,8 @@ share/python-wheels/
 MANIFEST
 
 # Virtual environments
-supplyxplorer_env/
-supplyxplorer_env_311/
+partxplorer_env/
+partxplorer_env_311/
 venv/
 env/
 ENV/

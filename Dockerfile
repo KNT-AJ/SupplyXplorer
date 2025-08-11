@@ -16,9 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create non-root user
-RUN useradd -m -u 1000 supplyxplorer && \
-    chown -R supplyxplorer:supplyxplorer /app
-USER supplyxplorer
+RUN useradd -m -u 1000 partxplorer && \
+    chown -R partxplorer:partxplorer /app
+USER partxplorer
 
 # Expose ports
 EXPOSE 8000 8050

@@ -1,4 +1,4 @@
-# SupplyXplorer v1.0.0
+# PartXplorer v1.0.0
 
 Inventory & Cash-Flow Planning Tool
 
@@ -22,7 +22,7 @@ Plan part purchases and cash outflows from a sales/installation forecast using B
 ### Repository structure
 
 ```
-SupplyXplorer/
+PartXplorer/
 ├─ app/
 │  ├─ api.py                 # FastAPI app and endpoints (planning, uploads, exports, inventory)
 │  ├─ planner.py             # Planning engine (SupplyPlanner)
@@ -64,8 +64,8 @@ Prereqs: Python 3.11+ and pip
 
 1) Create venv and install deps
 ```bash
-python3.11 -m venv supplyxplorer_env
-source supplyxplorer_env/bin/activate
+python3.11 -m venv partxplorer_env
+source partxplorer_env/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -338,7 +338,7 @@ docker compose up -d
 ## ⚙️ Configuration
 
 ### Environment Variables
-- **DATABASE_URL** (default: sqlite:///./supplyxplorer.db)
+- **DATABASE_URL** (default: sqlite:///./partxplorer.db)
 - **API_HOST, API_PORT** (default: 0.0.0.0:8000)
 - **DASHBOARD_PORT** (default: 8050)
 

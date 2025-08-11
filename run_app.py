@@ -29,14 +29,19 @@ def run_server(command, name, cwd):
         print(f"An error occurred while running {name}: {e}")
 
 def main():
-    # Hardcode the project directory and python executable for reliability
-    project_dir = '/Users/ajdavis/GitHub/SupplyXplorer'
-    python_executable = '/Users/ajdavis/GitHub/SupplyXplorer/supplyxplorer_env/bin/python'  # Use virtual environment python
-    
+    # Resolve project_dir dynamically and choose best available Python
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(project_dir, 'partxplorer_env', 'bin', 'python'),
+        os.path.join(project_dir, 'supplyxplorer_env', 'bin', 'python'),
+        sys.executable,
+    ]
+    python_executable = next((p for p in candidates if os.path.exists(p)), sys.executable)
+
     backend_command = [python_executable, 'main.py']
     frontend_command = [python_executable, 'app/dashboard.py']
 
-    print("SupplyXplorer - Starting both backend and frontend servers...")
+    print("PartXplorer - Starting both backend and frontend servers...")
     print(f"Using Python from: {python_executable}")
     print("Backend will be available at: http://localhost:8000")
     print("Frontend will be available at: http://localhost:8050")

@@ -7,7 +7,7 @@ services:
       - "8000:8000"  # API
       - "8050:8050"  # Dashboard
     environment:
-      - DATABASE_URL=postgresql://supplyxplorer:password@db:5432/supplyxplorer
+      - DATABASE_URL=postgresql://partxplorer:password@db:5432/partxplorer
     depends_on:
       - db
     volumes:
@@ -17,8 +17,8 @@ services:
   db:
     image: postgres:15
     environment:
-      - POSTGRES_DB=supplyxplorer
-      - POSTGRES_USER=supplyxplorer
+      - POSTGRES_DB=partxplorer
+      - POSTGRES_USER=partxplorer
       - POSTGRES_PASSWORD=password
     volumes:
       - postgres_data:/var/lib/postgresql/data

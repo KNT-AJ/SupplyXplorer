@@ -1,4 +1,4 @@
-# SupplyXplorer - Quick Start Guide
+# PartXplorer - Quick Start Guide
 
 ## Running the Application
 

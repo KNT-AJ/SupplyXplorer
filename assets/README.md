@@ -1,6 +1,6 @@
 # Assets Folder
 
-This folder contains static assets for the SupplyXplorer application.
+This folder contains static assets for the PartXplorer application.
 
 ## Logo
 - **KNT Logo**: `KNT-logo-web.png` - The KNT logo displayed in the top right corner

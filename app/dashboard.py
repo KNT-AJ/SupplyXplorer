@@ -10,7 +10,7 @@ import json
 
 # Initialize Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], assets_folder='../assets', suppress_callback_exceptions=True)
-app.title = "SupplyXplorer Dashboard"
+app.title = "PartXplorer Dashboard"
 
 # API base URL
 API_BASE = "http://localhost:8000"
@@ -28,7 +28,7 @@ app.layout = dbc.Container([
     # Header with logo
     dbc.Row([
         dbc.Col([
-            html.H1("SupplyXplorer", className="text-primary mb-0"),
+            html.H1("PartXplorer", className="text-primary mb-0"),
             html.P("Inventory & Cash-Flow Planning Tool", className="text-muted mb-0")
         ], width=8),
         dbc.Col([

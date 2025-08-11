@@ -1,4 +1,4 @@
-/* KNT Website-inspired color palette for SupplyXplorer */
+/* KNT Website-inspired color palette for PartXplorer */
 :root {
     /* Primary KNT Colors - Updated to match website aesthetic */
     --knt-primary: #1a365d;      /* Deep Professional Blue */
@@ -54,7 +54,7 @@ body, html {
     letter-spacing: -0.025em;
 }
 
-/* Custom styles for SupplyXplorer */
+/* Custom styles for PartXplorer */
 .logo-container {
     display: flex;
     align-items: center;

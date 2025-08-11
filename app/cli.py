@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SupplyXplorer CLI - Command-line interface for testing and automation
+PartXplorer CLI - Command-line interface for testing and automation
 """
 
 import click
@@ -14,7 +14,7 @@ API_BASE = "http://localhost:8000"
 
 @click.group()
 def cli():
-    """SupplyXplorer CLI - Inventory & Cash-Flow Planning Tool"""
+    """PartXplorer CLI - Inventory & Cash-Flow Planning Tool"""
     pass
 
 @cli.command()

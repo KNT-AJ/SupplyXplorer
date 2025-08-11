@@ -8,7 +8,7 @@ import sqlite3
 load_dotenv()
 
 # Database URL - use SQLite for development, PostgreSQL for production
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./supplyxplorer.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./partxplorer.db")
 
 engine = create_engine(
     DATABASE_URL,

@@ -14,7 +14,7 @@ from app.tariff_utils import (
 )
 
 class SupplyPlanner:
-    """Core planning engine for SupplyXplorer"""
+    """Core planning engine for PartXplorer"""
     
     def __init__(self, db: Session):
         self.db = db

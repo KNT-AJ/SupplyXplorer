@@ -38,7 +38,7 @@ from app.pdf_llm_extractor import extract_pending_orders_from_pdf
 from app.schemas import TariffQuoteRequest, TariffQuoteResponse
 
 app = FastAPI(
-    title="SupplyXplorer API",
+    title="PartXplorer API",
     description="Inventory & Cash-Flow Planning Tool",
     version="1.0.0"
 )
@@ -55,7 +55,7 @@ app.add_middleware(
 # Health check
 @app.get("/")
 async def root():
-    return {"message": "SupplyXplorer API is running"}
+    return {"message": "PartXplorer API is running"}
 
 # Product endpoints
 @app.post("/products", response_model=ProductSchema)
