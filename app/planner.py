@@ -5,6 +5,7 @@ from typing import List, Dict, Tuple
 from sqlalchemy.orm import Session
 from app.models import Product, Part, Supplier, BOM, Forecast, LeadTime, Order, Inventory
 from app.schemas import OrderSchedule, CashFlowProjection, KeyMetrics, SupplierOrderSummary
+from app.inventory_service import InventoryService
 from app.tariff_calculator import TariffCalculator
 from app.tariff_utils import (
     DEFAULT_COUNTRY_OF_ORIGIN_TARIFFED,
@@ -18,6 +19,7 @@ class SupplyPlanner:
     def __init__(self, db: Session):
         self.db = db
         self.tariff_calculator = TariffCalculator()
+        self.inventory_service = InventoryService(db)
         
     def calculate_part_demand(self, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         """Calculate part demand per period based on forecast and BOM"""
@@ -183,19 +185,74 @@ class SupplyPlanner:
                 
                 # Update running stock with incoming order
                 running_stock += order_qty
-                
-                # Order date = need date - total lead time
-                order_date = need_date - timedelta(days=total_lead_time)
-                
+
+                # Consider shipping quote to override transit time and cost
+                raw_country_of_origin = bom_item.country_of_origin
+                country_of_origin = raw_country_of_origin or "USA"
+                shipping_cost_per_unit = bom_item.shipping_cost or 0.0
+                effective_shipping_lead_time = shipping_lead_time
+                selected_quote = None
+                try:
+                    from app.models import ShippingQuote
+                    preferred_mode = getattr(bom_item, 'shipping_mode', None)
+                    q = (
+                        self.db.query(ShippingQuote)
+                        .filter((ShippingQuote.is_active == 'Yes'))
+                        .order_by(ShippingQuote.created_at.desc())
+                        .all()
+                    )
+                    for cand in q:
+                        if preferred_mode:
+                            if (cand.mode or '').lower() == preferred_mode.lower():
+                                selected_quote = cand
+                                break
+                        else:
+                            selected_quote = cand
+                            break
+                    if selected_quote:
+                        # Override shipping lead time using quote transit days
+                        td = None
+                        if getattr(selected_quote, 'transit_days', None):
+                            td = int(selected_quote.transit_days)
+                        else:
+                            tmin = getattr(selected_quote, 'transit_days_min', None)
+                            tmax = getattr(selected_quote, 'transit_days_max', None)
+                            if tmin and tmax:
+                                td = int(round((tmin + tmax) / 2))
+                            elif tmin:
+                                td = int(tmin)
+                        if td is not None and td >= 0:
+                            effective_shipping_lead_time = td
+                        # Estimate shipping cost per unit using quote
+                        unit_weight = getattr(bom_item, 'unit_weight_kg', None)
+                        unit_volume = getattr(bom_item, 'unit_volume_cbm', None)
+                        est = 0.0
+                        if unit_weight and getattr(selected_quote, 'cost_per_kg', None):
+                            est = float(unit_weight) * float(selected_quote.cost_per_kg)
+                        elif unit_volume and getattr(selected_quote, 'cost_per_cbm', None):
+                            est = float(unit_volume) * float(selected_quote.cost_per_cbm)
+                        if getattr(selected_quote, 'min_charge', None) and est > 0:
+                            est = max(est, float(selected_quote.min_charge) / max(int(order_qty), 1))
+                        if getattr(selected_quote, 'fuel_surcharge_pct', None) and est > 0:
+                            est = est * (1.0 + float(selected_quote.fuel_surcharge_pct) / 100.0)
+                        fees = 0.0
+                        for fee_name in ['security_fee', 'handling_fee', 'other_fees']:
+                            fee_val = getattr(selected_quote, fee_name, None)
+                            if fee_val:
+                                fees += float(fee_val)
+                        if fees > 0:
+                            est += fees / max(int(order_qty), 1)
+                        if est > 0:
+                            shipping_cost_per_unit = est
+                except Exception:
+                    pass
+
+                # Recompute order date using possibly updated shipping lead time
+                order_date = need_date - timedelta(days=(manufacturing_lead_time + effective_shipping_lead_time))
                 # Payment date = order date + AP terms
                 ap_terms = bom_item.ap_terms or 30
                 payment_date = order_date + timedelta(days=ap_terms)
-                
-                # Get country of origin, shipping cost, and tariff eligibility
-                raw_country_of_origin = bom_item.country_of_origin
-                # Keep a display-friendly COO (defaults to USA if unknown)
-                country_of_origin = raw_country_of_origin or "USA"
-                shipping_cost_per_unit = bom_item.shipping_cost or 0.0
+
                 subject_to_tariffs = (bom_item.subject_to_tariffs or "No")
 
                 # Calculate total cost including tariffs and shipping
@@ -425,4 +482,85 @@ class SupplyPlanner:
             'supplier_order_summaries': supplier_order_summaries,
             'cash_flow_projection': cash_flow_projection,
             'key_metrics': key_metrics
+        }
+    
+    def generate_inventory_based_recommendations(self, start_date: datetime, end_date: datetime) -> Dict:
+        """Generate order recommendations based on enhanced inventory projections"""
+        
+        # Get inventory alerts
+        alerts = self.inventory_service.get_inventory_alerts()
+        
+        # Get projected inventory
+        projected_inventory = self.inventory_service.get_projected_inventory()
+        
+        # Convert alerts to order recommendations
+        urgent_orders = []
+        recommended_orders = []
+        
+        for alert in alerts:
+            if alert.alert_type == "shortage" and alert.severity in ["critical", "high"]:
+                # Create urgent order recommendation
+                order_date = datetime.now()
+                estimated_delivery = order_date + timedelta(days=30)  # Default lead time
+                
+                urgent_order = OrderSchedule(
+                    part_id=alert.part_id,
+                    part_name=alert.part_name,
+                    part_description=alert.part_name,
+                    supplier_id=None,
+                    supplier_name=None,
+                    order_date=order_date,
+                    qty=alert.suggested_order_qty or 50,
+                    payment_date=order_date + timedelta(days=30),
+                    unit_cost=0.0,  # To be filled from inventory data
+                    total_cost=0.0,
+                    status="urgent_recommendation",
+                    days_until_order=0,
+                    days_until_payment=30
+                )
+                urgent_orders.append(urgent_order)
+                
+            elif alert.alert_type == "reorder":
+                # Create standard reorder recommendation
+                order_date = datetime.now() + timedelta(days=alert.days_until_shortage or 14)
+                estimated_delivery = order_date + timedelta(days=30)
+                
+                recommended_order = OrderSchedule(
+                    part_id=alert.part_id,
+                    part_name=alert.part_name,
+                    part_description=alert.part_name,
+                    supplier_id=None,
+                    supplier_name=None,
+                    order_date=order_date,
+                    qty=alert.suggested_order_qty or 100,
+                    payment_date=order_date + timedelta(days=30),
+                    unit_cost=0.0,
+                    total_cost=0.0,
+                    status="recommended",
+                    days_until_order=alert.days_until_shortage or 14,
+                    days_until_payment=(alert.days_until_shortage or 14) + 30
+                )
+                recommended_orders.append(recommended_order)
+        
+        # Fill in unit costs from projected inventory
+        for proj_item in projected_inventory:
+            # Update urgent orders
+            for order in urgent_orders:
+                if order.part_id == proj_item.part_id:
+                    order.unit_cost = proj_item.unit_cost
+                    order.total_cost = order.qty * order.unit_cost
+                    order.supplier_name = proj_item.supplier_name
+            
+            # Update recommended orders
+            for order in recommended_orders:
+                if order.part_id == proj_item.part_id:
+                    order.unit_cost = proj_item.unit_cost
+                    order.total_cost = order.qty * order.unit_cost
+                    order.supplier_name = proj_item.supplier_name
+        
+        return {
+            'urgent_orders': urgent_orders,
+            'recommended_orders': recommended_orders,
+            'alerts': alerts,
+            'projected_inventory': projected_inventory
         } 

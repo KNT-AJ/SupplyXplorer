@@ -1,44 +1,34 @@
-# SupplyXplorer - Run Instructions
+# SupplyXplorer - Quick Start Guide
 
-## Quick Start
+## Running the Application
 
-### Option 1: Run Both Servers Together (Recommended)
+### Recommended: Both Servers Together
 ```bash
 python run_app.py
 ```
+This starts both the API (port 8000) and Dashboard (port 8050) automatically.
 
-This will start both the backend (port 8000) and frontend (port 8050) servers automatically.
-
-### Option 2: Run Servers Separately
-
-**Terminal 1 - Backend Server:**
+### Alternative: Run Separately
 ```bash
+# Terminal 1 - Backend API
 python main.py
-```
 
-**Terminal 2 - Frontend Server:**
-```bash
+# Terminal 2 - Frontend Dashboard  
 python app/dashboard.py
 ```
 
-## Access the Application
+## Access Points
+- **Dashboard**: http://localhost:8050
+- **API Documentation**: http://localhost:8000/docs
 
-- **Frontend Dashboard**: http://localhost:8050
-- **Backend API**: http://localhost:8000
+## Load Sample Data
+```bash
+python load_sample_data.py
+```
 
-## Troubleshooting
+## Test Exports (Optional)
+```bash
+python test_export.py
+```
 
-If you see connection errors:
-
-1. **Backend not running**: Start the backend server first with `python main.py`
-2. **Port conflicts**: Make sure ports 8000 and 8050 are available
-3. **Dependencies**: Install requirements with `pip install -r requirements.txt`
-
-## File Upload Requirements
-
-### Forecast Data (CSV)
-Required columns: `product_id, date, quantity`
-
-### BOM Data (CSV)  
-Required columns: `product_id, part_id, quantity`
-Optional columns: `lead_time, ap_terms, transit_time, country_of_origin, shipping_cost` 
+See main README.md for complete documentation. 

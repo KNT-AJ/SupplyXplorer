@@ -67,6 +67,9 @@ class BOM(Base):
     ap_month_lag_days = Column(Integer, nullable=True)  # AP month lag days
     manufacturing_lead_time = Column(Integer, nullable=True)  # Manufacturing lead time in days
     shipping_lead_time = Column(Integer, nullable=True)  # Shipping lead time in days
+    shipping_mode = Column(String, nullable=True)  # Shipping mode preference: air/sea/courier
+    unit_weight_kg = Column(Float, nullable=True)  # Optional weight per unit for freight calc
+    unit_volume_cbm = Column(Float, nullable=True)  # Optional volume per unit for freight calc
     country_of_origin = Column(String, nullable=True)  # Country of origin for tariff calculation
     shipping_cost = Column(Float, nullable=True)  # Shipping/logistics cost per unit
     hts_code = Column(String, nullable=True)  # Harmonized Tariff Schedule code
@@ -147,3 +150,37 @@ class Inventory(Base):
     
     # Relationships (disabled to avoid foreign key constraint issues)
     # part = relationship("Part")
+
+
+class ShippingQuote(Base):
+    __tablename__ = "shipping_quotes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    provider_name = Column(String(200), nullable=True)
+    mode = Column(String(50), nullable=True)  # air, sea, courier
+    service_level = Column(String(100), nullable=True)
+    origin = Column(String(200), nullable=True)
+    destination = Column(String(200), nullable=True)
+    origin_port = Column(String(100), nullable=True)
+    destination_port = Column(String(100), nullable=True)
+    valid_from = Column(DateTime, nullable=True)
+    valid_to = Column(DateTime, nullable=True)
+    transit_days_min = Column(Integer, nullable=True)
+    transit_days_max = Column(Integer, nullable=True)
+    transit_days = Column(Integer, nullable=True)
+    currency = Column(String(10), nullable=True)
+    cost_per_kg = Column(Float, nullable=True)
+    cost_per_cbm = Column(Float, nullable=True)
+    min_charge = Column(Float, nullable=True)
+    fuel_surcharge_pct = Column(Float, nullable=True)
+    security_fee = Column(Float, nullable=True)
+    handling_fee = Column(Float, nullable=True)
+    other_fees = Column(Float, nullable=True)
+    total_cost = Column(Float, nullable=True)
+    quote_weight_kg = Column(Float, nullable=True)
+    quote_volume_cbm = Column(Float, nullable=True)
+    chargeable_weight_kg = Column(Float, nullable=True)
+    notes = Column(Text, nullable=True)
+    is_active = Column(String(5), nullable=True, default="Yes")  # Yes/No simple flag
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

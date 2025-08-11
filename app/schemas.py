@@ -38,6 +38,9 @@ class BOMBase(BaseModel):
     ap_month_lag_days: Optional[int] = Field(None, description="AP month lag days")
     manufacturing_lead_time: Optional[int] = Field(None, description="Manufacturing lead time in days")
     shipping_lead_time: Optional[int] = Field(None, description="Shipping lead time in days")
+    shipping_mode: Optional[str] = Field(None, description="Preferred shipping mode: air/sea/courier")
+    unit_weight_kg: Optional[float] = Field(None, description="Unit weight in kg for freight calc")
+    unit_volume_cbm: Optional[float] = Field(None, description="Unit volume in CBM for freight calc")
     country_of_origin: Optional[str] = Field(None, description="Country of origin for tariff calculation")
     shipping_cost: Optional[float] = Field(None, description="Shipping/logistics cost per unit")
     subject_to_tariffs: Optional[str] = Field("No", description="Whether part is subject to tariffs (Yes/No)")
@@ -167,6 +170,96 @@ class PendingOrderSchema(PendingOrderBase):
 
     class Config:
         from_attributes = True
+
+# Shipping quotes schemas
+class ShippingQuoteBase(BaseModel):
+    provider_name: Optional[str] = Field(None, description="Logistics provider (e.g., Watco)")
+    mode: Optional[str] = Field(None, description="Transport mode: air/sea/courier")
+    service_level: Optional[str] = Field(None, description="Service level")
+    origin: Optional[str] = Field(None, description="Origin city/country")
+    destination: Optional[str] = Field(None, description="Destination city/state")
+    origin_port: Optional[str] = Field(None, description="Origin airport/port")
+    destination_port: Optional[str] = Field(None, description="Destination airport/port")
+    valid_from: Optional[datetime] = Field(None)
+    valid_to: Optional[datetime] = Field(None)
+    transit_days_min: Optional[int] = Field(None)
+    transit_days_max: Optional[int] = Field(None)
+    transit_days: Optional[int] = Field(None)
+    currency: Optional[str] = Field(None)
+    cost_per_kg: Optional[float] = Field(None)
+    cost_per_cbm: Optional[float] = Field(None)
+    min_charge: Optional[float] = Field(None)
+    fuel_surcharge_pct: Optional[float] = Field(None)
+    security_fee: Optional[float] = Field(None)
+    handling_fee: Optional[float] = Field(None)
+    other_fees: Optional[float] = Field(None)
+    total_cost: Optional[float] = Field(None)
+    quote_weight_kg: Optional[float] = Field(None)
+    quote_volume_cbm: Optional[float] = Field(None)
+    chargeable_weight_kg: Optional[float] = Field(None)
+    notes: Optional[str] = Field(None)
+    is_active: Optional[str] = Field("Yes", description="Yes/No")
+
+class ShippingQuoteCreate(ShippingQuoteBase):
+    pass
+
+class ShippingQuoteSchema(ShippingQuoteBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Enhanced inventory schemas for projection
+class ProjectedInventoryBase(BaseModel):
+    part_id: str = Field(..., description="Part identifier")
+    part_name: str = Field(..., description="Part name/description")
+    current_stock: int = Field(..., description="Current physical stock")
+    pending_qty: int = Field(default=0, description="Total pending order quantity")
+    allocated_qty: int = Field(default=0, description="Allocated quantity for production")
+    net_available: int = Field(..., description="Net available inventory (current + pending - allocated)")
+    days_of_supply: Optional[float] = Field(None, description="Days of supply based on demand")
+    minimum_stock: int = Field(default=0, description="Minimum stock level")
+    maximum_stock: Optional[int] = Field(None, description="Maximum stock level")
+    unit_cost: float = Field(default=0.0, description="Unit cost")
+    total_value: float = Field(default=0.0, description="Total inventory value")
+    supplier_name: Optional[str] = Field(None, description="Primary supplier name")
+    location: Optional[str] = Field(None, description="Storage location")
+    shortage_risk: str = Field(default="Low", description="Shortage risk level (Low/Medium/High)")
+    pending_orders_summary: Optional[str] = Field(None, description="Summary of pending orders")
+
+class ProjectedInventorySchema(ProjectedInventoryBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class InventoryProjection(BaseModel):
+    """Time-based inventory projection"""
+    part_id: str
+    part_name: str
+    projection_date: datetime
+    projected_stock: int
+    pending_deliveries: int
+    planned_consumption: int
+    net_position: int
+    days_of_supply: Optional[float] = None
+    shortage_risk: str = "Low"
+
+class InventoryAlert(BaseModel):
+    """Inventory shortage/excess alert"""
+    part_id: str
+    part_name: str
+    alert_type: str  # "shortage", "excess", "reorder"
+    current_stock: int
+    target_stock: int
+    severity: str  # "low", "medium", "high", "critical"
+    recommended_action: str
+    days_until_shortage: Optional[int] = None
+    suggested_order_qty: Optional[int] = None
 
 # Planning results schemas
 class OrderSchedule(BaseModel):

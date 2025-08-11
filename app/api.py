@@ -19,9 +19,11 @@ from app.schemas import (
     InventoryCreate, InventorySchema,
     OrderSchedule, CashFlowProjection, KeyMetrics, SupplierOrderSummary,
     ForecastUpload, BOMUpload, LeadTimeUpload, InventoryUpload,
-    PendingOrderCreate, PendingOrderSchema
+    PendingOrderCreate, PendingOrderSchema,
+    ProjectedInventoryBase, InventoryProjection, InventoryAlert
 )
 from app.planner import SupplyPlanner
+from app.inventory_service import InventoryService
 from app.tariff_utils import (
     is_supplier_subject_to_tariffs,
     DEFAULT_COUNTRY_OF_ORIGIN_TARIFFED,
@@ -227,6 +229,51 @@ def create_inventory(inventory: InventoryCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_inventory)
     return db_inventory
+
+# Enhanced Inventory endpoints with projections (MUST come before parameterized routes)
+@app.get("/inventory/projected")
+def get_projected_inventory(part_id: str = None, db: Session = Depends(get_db)):
+    """Get projected inventory with pending orders and allocations"""
+    inventory_service = InventoryService(db)
+    projected_items = inventory_service.get_projected_inventory(part_id)
+    # Convert to dict to avoid pydantic model issues
+    return [item.model_dump() for item in projected_items]
+
+@app.get("/inventory/projections")
+def get_inventory_projections(
+    start_date: datetime,
+    end_date: datetime,
+    part_id: str = None,
+    db: Session = Depends(get_db)
+):
+    """Get time-based inventory projections"""
+    inventory_service = InventoryService(db)
+    projections = inventory_service.get_inventory_projections(start_date, end_date, part_id)
+    # Convert to dict to avoid pydantic model issues
+    return [proj.model_dump() for proj in projections]
+
+@app.get("/inventory/alerts")
+def get_inventory_alerts(days_ahead: int = 90, db: Session = Depends(get_db)):
+    """Get inventory alerts for shortages and recommendations"""
+    inventory_service = InventoryService(db)
+    alerts = inventory_service.get_inventory_alerts(days_ahead)
+    # Convert to dict to avoid pydantic model issues
+    return [alert.model_dump() for alert in alerts]
+
+@app.get("/inventory/recommendations")
+def get_inventory_based_recommendations(
+    start_date: datetime = None,
+    end_date: datetime = None,
+    db: Session = Depends(get_db)
+):
+    """Get order recommendations based on inventory projections"""
+    if not start_date:
+        start_date = datetime.now()
+    if not end_date:
+        end_date = start_date + timedelta(days=365)
+    
+    planner = SupplyPlanner(db)
+    return planner.generate_inventory_based_recommendations(start_date, end_date)
 
 @app.get("/inventory", response_model=List[InventorySchema])
 def get_inventory(db: Session = Depends(get_db)):

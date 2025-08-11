@@ -45,6 +45,10 @@ def run_schema_upgrades():
         # Ensure HTS code columns
         ensure_column('bom', 'hts_code', 'hts_code TEXT')
         ensure_column('inventory', 'hts_code', 'hts_code TEXT')
+        # Ensure new BOM shipping-related columns
+        ensure_column('bom', 'shipping_mode', 'shipping_mode TEXT')
+        ensure_column('bom', 'unit_weight_kg', 'unit_weight_kg REAL')
+        ensure_column('bom', 'unit_volume_cbm', 'unit_volume_cbm REAL')
         # Ensure pending orders new columns
         ensure_column('orders', 'estimated_delivery_date', 'estimated_delivery_date TEXT')
         ensure_column('orders', 'unit_cost', 'unit_cost REAL DEFAULT 0')

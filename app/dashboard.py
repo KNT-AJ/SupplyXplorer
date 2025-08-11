@@ -285,9 +285,6 @@ app.layout = dbc.Container([
                             html.H5("Quick Actions"),
                             dbc.Row([
                                 dbc.Col([
-                                    dbc.Button("Refresh Inventory Data", id="refresh-inventory-btn", color="primary", className="mb-2 w-100")
-                                ], width=12),
-                                dbc.Col([
                                     dbc.Button("Save Changes", id="save-inventory-btn", color="success", className="mb-2 w-100")
                                 ], width=12),
                                 dbc.Col([
@@ -299,6 +296,16 @@ app.layout = dbc.Container([
                             ])
                         ], width=6)
                     ], className="mb-4"),
+                    
+                    # Inventory Alerts Section
+                    dbc.Row([
+                        dbc.Col([
+                            html.H5("Inventory Alerts", className="mb-3"),
+                            html.Div(id="inventory-alerts-section")
+                        ])
+                    ], className="mb-4"),
+                    
+                    # Main Inventory Table
                     html.Div(id="inventory-data-table")
                 ])
             ])
@@ -699,6 +706,7 @@ def upload_inventory(contents, filename):
     [Output('bom-data-table', 'children', allow_duplicate=True),
      Output('forecast-data-table', 'children', allow_duplicate=True),
      Output('inventory-data-table', 'children', allow_duplicate=True),
+     Output('inventory-alerts-section', 'children', allow_duplicate=True),
      Output('pending-orders-table', 'children', allow_duplicate=True)],
     Input('tabs', 'active_tab'),
     prevent_initial_call=True
@@ -708,6 +716,7 @@ def initialize_tab_content(active_tab):
     bom_content = ""
     forecast_content = ""
     inventory_content = ""
+    inventory_alerts_content = ""
     pending_orders_content = ""
     
     if active_tab == "bom-data":
@@ -817,9 +826,12 @@ def initialize_tab_content(active_tab):
     
     if active_tab == "inventory":
         try:
-            response = requests.get(f"{API_BASE}/inventory")
-            if response.status_code == 200:
-                inventory_data = response.json()
+            # Use projected inventory data for enhanced view
+            inventory_response = requests.get(f"{API_BASE}/inventory/projected")
+            alerts_response = requests.get(f"{API_BASE}/inventory/alerts")
+            
+            if inventory_response.status_code == 200:
+                inventory_data = inventory_response.json()
                 if inventory_data:
                     df = pd.DataFrame(inventory_data)
                     
@@ -836,130 +848,86 @@ def initialize_tab_content(active_tab):
                             id='inventory-data-editable-table',
                             data=df.to_dict('records'),
                             columns=[
-                                {"name": "ID", "id": "id", "editable": False},
-                                {"name": "Part ID", "id": "part_id", "editable": True},
+                                {"name": "Part ID", "id": "part_id", "editable": False},
                                 {"name": "Part Name", "id": "part_name", "editable": True},
                                 {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
+                                {"name": "Pending Qty", "id": "pending_qty", "editable": False, "type": "numeric"},
+                                {"name": "Allocated Qty", "id": "allocated_qty", "editable": False, "type": "numeric"},
+                                {"name": "Net Available", "id": "net_available", "editable": False, "type": "numeric"},
+                                {"name": "Days Supply", "id": "days_of_supply", "editable": False, "type": "numeric", "format": {"specifier": ".1f"}},
                                 {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
-                                {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
-                                {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
-                                {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
-                                {"name": "Supplier ID", "id": "supplier_id", "editable": True},
-                                {"name": "Supplier Name", "id": "supplier_name", "editable": True},
-                                {"name": "Location", "id": "location", "editable": True},
-                                {"name": "HTS Code", "id": "hts_code", "editable": True},
-                                {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
-                                {"name": "Notes", "id": "notes", "editable": True}
+                                {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric", "format": {"specifier": "$.2f"}},
+                                {"name": "Supplier", "id": "supplier_name", "editable": True},
+                                {"name": "Risk Level", "id": "shortage_risk", "editable": False},
+                                {"name": "Pending Orders", "id": "pending_orders_summary", "editable": False}
                             ],
                             editable=True,
-                            row_deletable=True,
-                            dropdown={
-                                'subject_to_tariffs': {
-                                    'options': [
-                                        {'label': 'Yes', 'value': 'Yes'},
-                                        {'label': 'No', 'value': 'No'}
-                                    ]
-                                }
-                            },
                             style_table={'overflowX': 'auto'},
                             style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
                             style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
                             style_data_conditional=[
                                 {
-                                    'if': {'column_editable': True},
-                                    'backgroundColor': 'rgb(248, 248, 248)',
+                                    'if': {'filter_query': '{shortage_risk} = Critical'},
+                                    'backgroundColor': '#dc3545',
+                                    'color': 'white',
                                 },
                                 {
-                                    'if': {'filter_query': '{current_stock} < {minimum_stock}'},
-                                    'backgroundColor': '#ffcccc',
+                                    'if': {'filter_query': '{shortage_risk} = High'},
+                                    'backgroundColor': '#fd7e14',
+                                    'color': 'white',
+                                },
+                                {
+                                    'if': {'filter_query': '{shortage_risk} = Medium'},
+                                    'backgroundColor': '#ffc107',
                                     'color': 'black',
+                                },
+                                {
+                                    'if': {'filter_query': '{shortage_risk} = Low'},
+                                    'backgroundColor': '#28a745',
+                                    'color': 'white',
+                                },
+                                {
+                                    'if': {'filter_query': '{net_available} < {minimum_stock}'},
+                                    'fontWeight': 'bold'
                                 }
                             ]
                         )
                     ])
                 else:
-                    inventory_content = html.Div([
-                        html.Div("No inventory data found. Please upload inventory data first.", style={'color': 'gray'}),
-                        dash_table.DataTable(
-                            id='inventory-data-editable-table',
-                            data=[],
-                            columns=[
-                                {"name": "ID", "id": "id", "editable": False},
-                                {"name": "Part ID", "id": "part_id", "editable": True},
-                                {"name": "Part Name", "id": "part_name", "editable": True},
-                                {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
-                                {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
-                                {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
-                                {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
-                                {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
-                                {"name": "Supplier ID", "id": "supplier_id", "editable": True},
-                                {"name": "Supplier Name", "id": "supplier_name", "editable": True},
-                                {"name": "Location", "id": "location", "editable": True},
-                                {"name": "HTS Code", "id": "hts_code", "editable": True},
-                                {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
-                                {"name": "Notes", "id": "notes", "editable": True}
-                            ],
-                            editable=True,
-                            row_deletable=True,
-                            style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
-                            style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
-                            style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
-                        )
-                    ])
+                    inventory_content = html.Div("No inventory data found. Please upload inventory data first.", style={'color': 'gray'})
             else:
-                inventory_content = html.Div([
-                    html.Div("Error loading inventory data", style={'color': 'red'}),
-                    dash_table.DataTable(
-                        id='inventory-data-editable-table',
-                        data=[],
-                        columns=[
-                            {"name": "ID", "id": "id", "editable": False},
-                            {"name": "Part ID", "id": "part_id", "editable": True},
-                            {"name": "Part Name", "id": "part_name", "editable": True},
-                            {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
-                            {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
-                            {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
-                            {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
-                            {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
-                            {"name": "Supplier ID", "id": "supplier_id", "editable": True},
-                            {"name": "Supplier Name", "id": "supplier_name", "editable": True},
-                            {"name": "Location", "id": "location", "editable": True},
-                            {"name": "Notes", "id": "notes", "editable": True}
-                        ],
-                        editable=True,
-                        row_deletable=True,
-                        style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
-                        style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
-                        style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
-                    )
-                ])
+                inventory_content = html.Div("Error loading inventory data", style={'color': 'red'})
+                
+            # Process alerts
+            if alerts_response.status_code == 200:
+                alerts_data = alerts_response.json()
+                if alerts_data:
+                    alert_cards = []
+                    for alert in alerts_data[:10]:  # Show top 10 alerts
+                        severity_color = {
+                            'critical': 'danger',
+                            'high': 'warning', 
+                            'medium': 'info',
+                            'low': 'light'
+                        }.get(alert['severity'], 'light')
+                        
+                        alert_cards.append(
+                            dbc.Alert([
+                                html.H6(f"{alert['alert_type'].title()} Alert: {alert['part_name']}", className="alert-heading"),
+                                html.P(alert['recommended_action'], className="mb-1"),
+                                html.Small(f"Current Stock: {alert['current_stock']} | Target: {alert['target_stock']}", className="text-muted")
+                            ], color=severity_color, className="mb-2")
+                        )
+                    
+                    inventory_alerts_content = html.Div(alert_cards) if alert_cards else html.Div("No critical alerts")
+                else:
+                    inventory_alerts_content = html.Div("No alerts available")
+            else:
+                inventory_alerts_content = html.Div("No alerts available")
+                
         except Exception as e:
-            inventory_content = html.Div([
-                html.Div(f"Error: {str(e)}", style={'color': 'red'}),
-                dash_table.DataTable(
-                    id='inventory-data-editable-table',
-                    data=[],
-                    columns=[
-                        {"name": "ID", "id": "id", "editable": False},
-                        {"name": "Part ID", "id": "part_id", "editable": True},
-                        {"name": "Part Name", "id": "part_name", "editable": True},
-                        {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
-                        {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
-                        {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
-                        {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
-                        {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
-                        {"name": "Supplier ID", "id": "supplier_id", "editable": True},
-                        {"name": "Supplier Name", "id": "supplier_name", "editable": True},
-                        {"name": "Location", "id": "location", "editable": True},
-                        {"name": "Notes", "id": "notes", "editable": True}
-                    ],
-                    editable=True,
-                    row_deletable=True,
-                    style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
-                    style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
-                    style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
-                )
-            ])
+            inventory_content = html.Div(f"Error loading inventory data: {str(e)}", style={'color': 'red'})
+            inventory_alerts_content = html.Div("Error loading alerts", style={'color': 'red'})
     if active_tab == "pending-orders":
         try:
             response = requests.get(f"{API_BASE}/orders/pending")
@@ -970,7 +938,8 @@ def initialize_tab_content(active_tab):
                 ])
                 for col in ['order_date','estimated_delivery_date','payment_date','created_at','updated_at']:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(df[col]).dt.strftime('%Y-%m-%d')
+                        s = pd.to_datetime(df[col], errors='coerce', format='ISO8601')
+                        df[col] = s.dt.strftime('%Y-%m-%d').where(s.notna(), '')
                 pending_orders_content = dash_table.DataTable(
                     id='pending-orders-editable-table',
                     data=df.to_dict('records'),
@@ -1009,7 +978,7 @@ def initialize_tab_content(active_tab):
         except Exception as e:
             pending_orders_content = html.Div(f"Error: {str(e)}", style={'color': 'red'})
 
-    return bom_content, forecast_content, inventory_content, pending_orders_content
+    return bom_content, forecast_content, inventory_content, inventory_alerts_content, pending_orders_content
 
 @app.callback(
     Output('planning-status', 'children'),
@@ -1324,7 +1293,7 @@ def update_order_summary(data, view_type, start_date, end_date):
                                 html.P("Individual part orders", className="card-text")
                             ])
                         ], color="light", outline=True)
-                    ], width=3),
+                    ], width=4),
                     dbc.Col([
                         dbc.Card([
                             dbc.CardBody([
@@ -1333,25 +1302,16 @@ def update_order_summary(data, view_type, start_date, end_date):
                                 html.P("Consolidated supplier orders", className="card-text")
                             ])
                         ], color="light", outline=True)
-                    ], width=3),
-                    dbc.Col([
-                        dbc.Card([
-                            dbc.CardBody([
-                                html.H5("Order Reduction", className="card-title"),
-                                html.H3(f"{reduction_pct:.1f}%", className="text-info"),
-                                html.P("Fewer orders to manage", className="card-text")
-                            ])
-                        ], color="light", outline=True)
-                    ], width=3),
+                    ], width=4),
                     dbc.Col([
                         dbc.Card([
                             dbc.CardBody([
                                 html.H5("Total Value", className="card-title"),
                                 html.H3(f"${detailed_total:,.0f}", className="text-warning"),
-                                html.P("Same cost, simplified", className="card-text")
+                                html.P("Total order value", className="card-text")
                             ])
                         ], color="light", outline=True)
-                    ], width=3)
+                    ], width=4)
                 ])
                 
                 return cards
@@ -1376,7 +1336,8 @@ def refresh_pending_orders(n_clicks):
             ])
             for col in ['order_date','estimated_delivery_date','payment_date','created_at','updated_at']:
                 if col in df.columns:
-                    df[col] = pd.to_datetime(df[col]).dt.strftime('%Y-%m-%d')
+                    s = pd.to_datetime(df[col], errors='coerce', format='ISO8601')
+                    df[col] = s.dt.strftime('%Y-%m-%d').where(s.notna(), '')
             return dash_table.DataTable(
                 id='pending-orders-editable-table',
                 data=df.to_dict('records'),
@@ -1858,156 +1819,7 @@ def save_forecast_data(n_clicks, table_data):
     return ""
 
 # Inventory Data Editor callbacks
-@app.callback(
-    Output('inventory-data-table', 'children'),
-    [Input('refresh-inventory-btn', 'n_clicks')],
-    prevent_initial_call=True
-)
-def update_inventory_table(n_clicks):
-    try:
-        response = requests.get(f"{API_BASE}/inventory")
-        if response.status_code == 200:
-            inventory_data = response.json()
-            if inventory_data:
-                df = pd.DataFrame(inventory_data)
-                
-                # Convert datetime columns to strings for display
-                if 'created_at' in df.columns:
-                    df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
-                if 'updated_at' in df.columns:
-                    df['updated_at'] = pd.to_datetime(df['updated_at']).dt.strftime('%Y-%m-%d %H:%M')
-                if 'last_restock_date' in df.columns:
-                    df['last_restock_date'] = pd.to_datetime(df['last_restock_date']).dt.strftime('%Y-%m-%d %H:%M')
-                
-                return html.Div([
-                    dash_table.DataTable(
-                        id='inventory-data-editable-table',
-                        data=df.to_dict('records'),
-                        columns=[
-                            {"name": "ID", "id": "id", "editable": False},
-                            {"name": "Part ID", "id": "part_id", "editable": True},
-                            {"name": "Part Name", "id": "part_name", "editable": True},
-                            {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
-                            {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
-                            {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
-                            {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
-                            {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
-                            {"name": "Supplier ID", "id": "supplier_id", "editable": True},
-                            {"name": "Supplier Name", "id": "supplier_name", "editable": True},
-                                {"name": "Location", "id": "location", "editable": True},
-                                {"name": "HTS Code", "id": "hts_code", "editable": True},
-                            {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
-                            {"name": "Notes", "id": "notes", "editable": True}
-                        ],
-                        editable=True,
-                        row_deletable=True,
-                        dropdown={
-                            'subject_to_tariffs': {
-                                'options': [
-                                    {'label': 'Yes', 'value': 'Yes'},
-                                    {'label': 'No', 'value': 'No'}
-                                ]
-                            }
-                        },
-                        style_table={'overflowX': 'auto'},
-                        style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
-                        style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
-                        style_data_conditional=[
-                            {
-                                'if': {'column_editable': True},
-                                'backgroundColor': 'rgb(248, 248, 248)',
-                            },
-                            {
-                                'if': {'filter_query': '{current_stock} < {minimum_stock}'},
-                                'backgroundColor': '#ffcccc',
-                                'color': 'black',
-                            }
-                        ]
-                    )
-                ])
-            else:
-                return html.Div([
-                    html.Div("No inventory data found. Please upload inventory data first.", style={'color': 'gray'}),
-                    dash_table.DataTable(
-                        id='inventory-data-editable-table',
-                        data=[],
-                        columns=[
-                            {"name": "ID", "id": "id", "editable": False},
-                            {"name": "Part ID", "id": "part_id", "editable": True},
-                            {"name": "Part Name", "id": "part_name", "editable": True},
-                            {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
-                            {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
-                            {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
-                            {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
-                            {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
-                            {"name": "Supplier ID", "id": "supplier_id", "editable": True},
-                            {"name": "Supplier Name", "id": "supplier_name", "editable": True},
-                            {"name": "Location", "id": "location", "editable": True},
-                            {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
-                            {"name": "Notes", "id": "notes", "editable": True}
-                        ],
-                        editable=True,
-                        row_deletable=True,
-                        style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
-                        style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
-                        style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
-                    )
-                ])
-        else:
-            return html.Div([
-                html.Div("Error loading inventory data", style={'color': 'red'}),
-                dash_table.DataTable(
-                    id='inventory-data-editable-table',
-                    data=[],
-                    columns=[
-                        {"name": "ID", "id": "id", "editable": False},
-                        {"name": "Part ID", "id": "part_id", "editable": True},
-                        {"name": "Part Name", "id": "part_name", "editable": True},
-                        {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
-                        {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
-                        {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
-                        {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
-                        {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
-                        {"name": "Supplier ID", "id": "supplier_id", "editable": True},
-                        {"name": "Supplier Name", "id": "supplier_name", "editable": True},
-                        {"name": "Location", "id": "location", "editable": True},
-                        {"name": "Notes", "id": "notes", "editable": True}
-                    ],
-                    editable=True,
-                    row_deletable=True,
-                    style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
-                    style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
-                    style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
-                )
-            ])
-    except Exception as e:
-        return html.Div([
-            html.Div(f"Error: {str(e)}", style={'color': 'red'}),
-            dash_table.DataTable(
-                id='inventory-data-editable-table',
-                data=[],
-                columns=[
-                    {"name": "ID", "id": "id", "editable": False},
-                    {"name": "Part ID", "id": "part_id", "editable": True},
-                    {"name": "Part Name", "id": "part_name", "editable": True},
-                    {"name": "Current Stock", "id": "current_stock", "editable": True, "type": "numeric"},
-                    {"name": "Minimum Stock", "id": "minimum_stock", "editable": True, "type": "numeric"},
-                    {"name": "Maximum Stock", "id": "maximum_stock", "editable": True, "type": "numeric"},
-                    {"name": "Unit Cost", "id": "unit_cost", "editable": True, "type": "numeric"},
-                    {"name": "Total Value", "id": "total_value", "editable": False, "type": "numeric"},
-                    {"name": "Supplier ID", "id": "supplier_id", "editable": True},
-                    {"name": "Supplier Name", "id": "supplier_name", "editable": True},
-                    {"name": "Location", "id": "location", "editable": True},
-                    {"name": "Subject to Tariffs", "id": "subject_to_tariffs", "editable": True, "presentation": "dropdown"},
-                    {"name": "Notes", "id": "notes", "editable": True}
-                ],
-                editable=True,
-                row_deletable=True,
-                style_table={'overflowX': 'auto', 'display': 'none'},  # Hide empty table
-                style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
-                style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
-            )
-        ])
+# Inventory refresh callback removed - data now loads automatically on tab initialization
 
 @app.callback(
     Output('inventory-save-status', 'children'),

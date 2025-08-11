@@ -83,6 +83,19 @@ fix_*.py
 verify_*.py
 reset_*.py
 create_tables.py
+migrate_*.py
+sync_*.py
+update_*.py
+convert_*.py
+add_*.py
+
+# Database backups
+*.db.backup*
+*.backup*
+
+# Sample data backups
+*_backup.*
+*_original.*
 
 # Jupyter Notebook
 .ipynb_checkpoints
