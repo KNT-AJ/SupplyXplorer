@@ -1,5 +1,5 @@
 import dash
-from dash import dcc, html, dash_table, callback, Input, Output, State
+from dash import dcc, html, dash_table, callback, Input, Output, State, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import plotly.express as px
@@ -24,6 +24,8 @@ def check_backend_connection():
         return False
 
 # Layout
+from app.components.pending_orders_callbacks import register_callbacks as register_pending_orders_callbacks
+
 app.layout = dbc.Container([
     # Header with logo
     dbc.Row([
@@ -35,14 +37,14 @@ app.layout = dbc.Container([
             html.Img(src="/assets/KNT-logo-web.png", height="40", className="float-end", alt="KNT Logo")
         ], width=4, className="logo-container")
     ], className="header-row"),
-    
+
     # Backend Status Indicator
     dbc.Row([
         dbc.Col([
             html.Div(id='backend-status', className="mb-3")
         ])
     ]),
-    
+
     # Navigation tabs
     dbc.Tabs([
         dbc.Tab([
@@ -84,6 +86,8 @@ app.layout = dbc.Container([
                             'height': '60px',
                             'lineHeight': '60px',
                             'borderWidth': '1px',
+
+
                             'borderStyle': 'dashed',
                             'borderRadius': '5px',
                             'textAlign': 'center',
@@ -95,11 +99,11 @@ app.layout = dbc.Container([
                     html.P("Expected columns: product_id, part_id, quantity, lead_time (optional), ap_terms (optional), transit_time (optional), country_of_origin (optional), shipping_cost (optional)", className="text-muted")
                 ], width=6)
             ], className="mb-4"),
-            
+
             # Planning Controls Section
             dbc.Col([
                 html.H4("Planning Controls", className="mb-3"),
-                
+
                 dbc.Row([
                     dbc.Col([
                         html.Label("Start Date:"),
@@ -118,7 +122,7 @@ app.layout = dbc.Container([
                         )
                     ], width=6)
                 ], className="mb-3"),
-                
+
                 dbc.Button(
                     "Run Planning Engine",
                     id="run-planning-btn",
@@ -126,11 +130,11 @@ app.layout = dbc.Container([
                     size="lg",
                     className="w-100"
                 ),
-                
+
                 html.Div(id='planning-status', className="mt-3")
             ], width=6)
         ], label="Data & Planning", tab_id="data-planning"),
-        
+
         dbc.Tab([
             # Key Metrics
             dbc.Row([
@@ -139,7 +143,7 @@ app.layout = dbc.Container([
                     html.Div(id="key-metrics-display")
                 ])
             ], className="mb-4"),
-            
+
             # Order Schedule
             dbc.Row([
                 dbc.Col([
@@ -169,6 +173,9 @@ app.layout = dbc.Container([
                             )
                         ], width=4)
                     ]),
+                    # Status/feedback for calendar export
+                    html.Div(id="calendar-export-status", className="mt-2"),
+
                     # Order Summary Cards
                     html.Div(id="order-summary-cards", className="mb-3"),
                     # Tariff Summary
@@ -176,7 +183,7 @@ app.layout = dbc.Container([
                     html.Div(id="order-schedule-display")
                 ])
             ], className="mb-4"),
-            
+
             # Cash Flow Chart
             dbc.Row([
                 dbc.Col([
@@ -204,7 +211,7 @@ app.layout = dbc.Container([
             dbc.Row([
                 dbc.Col([
                     html.H4("BOM Data Editor", className="mb-3"),
-                    html.P("Edit your Bill of Materials data directly. Changes are applied immediately to planning calculations.", 
+                    html.P("Edit your Bill of Materials data directly. Changes are applied immediately to planning calculations.",
                            className="text-muted mb-3"),
                     dbc.Row([
                         dbc.Col([
@@ -229,7 +236,7 @@ app.layout = dbc.Container([
             dbc.Row([
                 dbc.Col([
                     html.H4("Forecast Data Editor", className="mb-3"),
-                    html.P("Edit your forecast data directly. Changes are applied immediately to planning calculations.", 
+                    html.P("Edit your forecast data directly. Changes are applied immediately to planning calculations.",
                            className="text-muted mb-3"),
                     dbc.Row([
                         dbc.Col([
@@ -254,7 +261,7 @@ app.layout = dbc.Container([
             dbc.Row([
                 dbc.Col([
                     html.H4("Inventory Management", className="mb-3"),
-                    html.P("Manage your current inventory levels. This data is used by the planning engine to optimize order quantities.", 
+                    html.P("Manage your current inventory levels. This data is used by the planning engine to optimize order quantities.",
                            className="text-muted mb-3"),
                     dbc.Row([
                         dbc.Col([
@@ -278,7 +285,7 @@ app.layout = dbc.Container([
                                 multiple=False
                             ),
                             html.Div(id='upload-inventory-output'),
-                            html.P("Expected columns: part_id, part_name, current_stock, minimum_stock, maximum_stock, unit_cost, supplier_name, location, notes", 
+                            html.P("Expected columns: part_id, part_name, current_stock, minimum_stock, maximum_stock, unit_cost, supplier_name, location, notes",
                                    className="text-muted")
                         ], width=6),
                         dbc.Col([
@@ -296,7 +303,7 @@ app.layout = dbc.Container([
                             ])
                         ], width=6)
                     ], className="mb-4"),
-                    
+
                     # Inventory Alerts Section
                     dbc.Row([
                         dbc.Col([
@@ -304,7 +311,7 @@ app.layout = dbc.Container([
                             html.Div(id="inventory-alerts-section")
                         ])
                     ], className="mb-4"),
-                    
+
                     # Main Inventory Table
                     html.Div(id="inventory-data-table")
                 ])
@@ -313,6 +320,23 @@ app.layout = dbc.Container([
         dbc.Tab([
             # Pending Orders Management
             dbc.Row([
+                        # View toggle for Pending Orders
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Pending Orders View:", className="mb-2"),
+                                dbc.RadioItems(
+                                    id="pending-order-view-toggle",
+                                    options=[
+                                        {"label": "Individual Orders", "value": "individual"},
+                                        {"label": "Aggregated Orders (by Supplier)", "value": "aggregated"}
+                                    ],
+                                    value="individual",
+                                    inline=True,
+                                    className="mb-3"
+                                )
+                            ], width=12)
+                        ]),
+
                 dbc.Col([
                     html.H4("Pending Orders", className="mb-3"),
                     html.P("Track supplier POs that are placed or expected. These count as incoming supply for planning.", className="text-muted mb-3"),
@@ -342,14 +366,18 @@ app.layout = dbc.Container([
                             dbc.Button("Refresh", id="refresh-pending-orders-btn", color="primary", className="mb-2 w-100")
                         ], width=3),
                         dbc.Col([
+                            dbc.Button("Re-map", id="remap-pending-orders-btn", color="warning", outline=True, className="mb-2 w-100")
+                        ], width=3),
+                        dbc.Col([
                             dbc.Button("Save Changes", id="save-pending-orders-btn", color="success", className="mb-2 w-100")
                         ], width=3),
                         dbc.Col([
                             dbc.Button("Export CSV", id="export-pending-orders-btn", color="info", outline=True, className="mb-2 w-100")
                         ], width=3),
-                        dbc.Col([
-                            html.Div(id="pending-orders-save-status", className="mb-2")
-                        ], width=3),
+                    ]),
+                    dbc.Row([
+                        dbc.Col([html.Div(id="pending-orders-remap-status", className="mb-2")], width=6),
+                        dbc.Col([html.Div(id="pending-orders-save-status", className="mb-2")], width=6),
                     ]),
                     html.Div(id="pending-orders-table")
                 ])
@@ -503,7 +531,7 @@ app.layout = dbc.Container([
         ], label="Tariffs", tab_id="tariffs")
     ], id="tabs", active_tab="data-planning"),
     dcc.Store(id='planning-results-store'),
-    
+
     # Download components for CSV exports
     dcc.Download(id="download-orders"),
     dcc.Download(id="download-cashflow"),
@@ -551,19 +579,19 @@ def upload_forecast(contents, filename):
                 html.P("Please start the backend server first. Run 'python main.py' in a separate terminal.", className="upload-error"),
                 html.P("Or use 'python run_app.py' to start both servers.", className="upload-error")
             ])
-        
+
         try:
             # Parse CSV and send to API
             import base64
             import io
-            
+
             content_type, content_string = contents.split(',')
             decoded = base64.b64decode(content_string)
-            
+
             # Send to API
             files = {'file': (filename, decoded, 'text/csv')}
             response = requests.post(f"{API_BASE}/upload/forecast", files=files, timeout=10)
-            
+
             if response.status_code == 200:
                 return html.Div([
                     html.H5("Upload Successful!", className="upload-success"),
@@ -621,17 +649,17 @@ def upload_bom(contents, filename):
                 html.P("Please start the backend server first. Run 'python main.py' in a separate terminal.", className="upload-error"),
                 html.P("Or use 'python run_app.py' to start both servers.", className="upload-error")
             ])
-        
+
         try:
             import base64
             import io
-            
+
             content_type, content_string = contents.split(',')
             decoded = base64.b64decode(content_string)
-            
+
             files = {'file': (filename, decoded, 'text/csv')}
             response = requests.post(f"{API_BASE}/upload/bom", files=files, timeout=10)
-            
+
             if response.status_code == 200:
                 return html.Div([
                     html.H5("Upload Successful!", className="upload-success"),
@@ -668,17 +696,17 @@ def upload_inventory(contents, filename):
                 html.P("Please start the backend server first. Run 'python main.py' in a separate terminal.", className="upload-error"),
                 html.P("Or use 'python run_app.py' to start both servers.", className="upload-error")
             ])
-        
+
         try:
             import base64
             import io
-            
+
             content_type, content_string = contents.split(',')
             decoded = base64.b64decode(content_string)
-            
+
             files = {'file': (filename, decoded, 'text/csv')}
             response = requests.post(f"{API_BASE}/upload/inventory", files=files, timeout=10)
-            
+
             if response.status_code == 200:
                 return html.Div([
                     html.H5("Upload Successful!", className="upload-success"),
@@ -718,7 +746,7 @@ def initialize_tab_content(active_tab):
     inventory_content = ""
     inventory_alerts_content = ""
     pending_orders_content = ""
-    
+
     if active_tab == "bom-data":
         try:
             response = requests.get(f"{API_BASE}/bom")
@@ -726,13 +754,13 @@ def initialize_tab_content(active_tab):
                 bom_data = response.json()
                 if bom_data:
                     df = pd.DataFrame(bom_data)
-                    
+
                     # Convert datetime columns to strings for display
                     if 'created_at' in df.columns:
                         df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
                     if 'updated_at' in df.columns:
                         df['updated_at'] = pd.to_datetime(df['updated_at']).dt.strftime('%Y-%m-%d %H:%M')
-                    
+
                     bom_content = dash_table.DataTable(
                         id='bom-data-editable-table',
                         data=df.to_dict('records'),
@@ -779,7 +807,7 @@ def initialize_tab_content(active_tab):
                 bom_content = html.Div("Error loading BOM data", style={'color': 'red'})
         except Exception as e:
             bom_content = html.Div(f"Error: {str(e)}", style={'color': 'red'})
-    
+
     elif active_tab == "forecast-data":
         try:
             response = requests.get(f"{API_BASE}/forecast")
@@ -787,7 +815,7 @@ def initialize_tab_content(active_tab):
                 forecast_data = response.json()
                 if forecast_data:
                     df = pd.DataFrame(forecast_data)
-                    
+
                     # Convert datetime columns to strings for display
                     if 'installation_date' in df.columns:
                         df['installation_date'] = pd.to_datetime(df['installation_date']).dt.strftime('%Y-%m-%d')
@@ -795,7 +823,7 @@ def initialize_tab_content(active_tab):
                         df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
                     if 'updated_at' in df.columns:
                         df['updated_at'] = pd.to_datetime(df['updated_at']).dt.strftime('%Y-%m-%d %H:%M')
-                    
+
                     forecast_content = dash_table.DataTable(
                         id='forecast-data-editable-table',
                         data=df.to_dict('records'),
@@ -823,18 +851,18 @@ def initialize_tab_content(active_tab):
                 forecast_content = html.Div("Error loading forecast data", style={'color': 'red'})
         except Exception as e:
             forecast_content = html.Div(f"Error: {str(e)}", style={'color': 'red'})
-    
+
     if active_tab == "inventory":
         try:
             # Use projected inventory data for enhanced view
             inventory_response = requests.get(f"{API_BASE}/inventory/projected")
             alerts_response = requests.get(f"{API_BASE}/inventory/alerts")
-            
+
             if inventory_response.status_code == 200:
                 inventory_data = inventory_response.json()
                 if inventory_data:
                     df = pd.DataFrame(inventory_data)
-                    
+
                     # Convert datetime columns to strings for display
                     if 'created_at' in df.columns:
                         df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
@@ -842,7 +870,7 @@ def initialize_tab_content(active_tab):
                         df['updated_at'] = pd.to_datetime(df['updated_at']).dt.strftime('%Y-%m-%d %H:%M')
                     if 'last_restock_date' in df.columns:
                         df['last_restock_date'] = pd.to_datetime(df['last_restock_date']).dt.strftime('%Y-%m-%d %H:%M')
-                    
+
                     inventory_content = html.Div([
                         dash_table.DataTable(
                             id='inventory-data-editable-table',
@@ -897,7 +925,7 @@ def initialize_tab_content(active_tab):
                     inventory_content = html.Div("No inventory data found. Please upload inventory data first.", style={'color': 'gray'})
             else:
                 inventory_content = html.Div("Error loading inventory data", style={'color': 'red'})
-                
+
             # Process alerts
             if alerts_response.status_code == 200:
                 alerts_data = alerts_response.json()
@@ -906,11 +934,11 @@ def initialize_tab_content(active_tab):
                     for alert in alerts_data[:10]:  # Show top 10 alerts
                         severity_color = {
                             'critical': 'danger',
-                            'high': 'warning', 
+                            'high': 'warning',
                             'medium': 'info',
                             'low': 'light'
                         }.get(alert['severity'], 'light')
-                        
+
                         alert_cards.append(
                             dbc.Alert([
                                 html.H6(f"{alert['alert_type'].title()} Alert: {alert['part_name']}", className="alert-heading"),
@@ -918,13 +946,13 @@ def initialize_tab_content(active_tab):
                                 html.Small(f"Current Stock: {alert['current_stock']} | Target: {alert['target_stock']}", className="text-muted")
                             ], color=severity_color, className="mb-2")
                         )
-                    
+
                     inventory_alerts_content = html.Div(alert_cards) if alert_cards else html.Div("No critical alerts")
                 else:
                     inventory_alerts_content = html.Div("No alerts available")
             else:
                 inventory_alerts_content = html.Div("No alerts available")
-                
+
         except Exception as e:
             inventory_content = html.Div(f"Error loading inventory data: {str(e)}", style={'color': 'red'})
             inventory_alerts_content = html.Div("Error loading alerts", style={'color': 'red'})
@@ -934,18 +962,45 @@ def initialize_tab_content(active_tab):
             if response.status_code == 200:
                 orders = response.json()
                 df = pd.DataFrame(orders) if orders else pd.DataFrame(columns=[
-                    'id','part_id','supplier_id','supplier_name','order_date','estimated_delivery_date','qty','unit_cost','payment_date','status','po_number','notes'
+                    'id','part_id','supplier_id','supplier_name','order_date','estimated_delivery_date','qty','unit_cost','payment_date','status','po_number','notes','mapped_part_id','match_confidence'
                 ])
+                # Always keep raw datetime for aggregation; format copies later for display
+                df_raw = df.copy()
+
+                # Fetch inventory to build dropdown options for mapped_part_id
+                inv_resp = requests.get(f"{API_BASE}/inventory")
+                inv_options = []
+                if inv_resp.status_code == 200:
+                    inv = inv_resp.json() or []
+                    inv_options = [{'label': str(row.get('part_id')), 'value': str(row.get('part_id'))} for row in inv if row.get('part_id')]
+                # Fallback to projected inventory if base inventory endpoint is empty
+                if not inv_options:
+                    proj = requests.get(f"{API_BASE}/inventory/projected")
+                    if proj.status_code == 200:
+                        data = proj.json() or []
+                        ids = sorted({str(row.get('part_id')) for row in data if row.get('part_id')})
+                        inv_options = [{'label': pid, 'value': pid} for pid in ids]
+                # Add Clear Mapping option (use sentinel so menu isn't empty)
+                inv_options = [{'label': '— Clear Mapping —', 'value': '__CLEAR__'}] + inv_options
+
+                # Individual view table
+                df_ind = df.copy()
                 for col in ['order_date','estimated_delivery_date','payment_date','created_at','updated_at']:
-                    if col in df.columns:
-                        s = pd.to_datetime(df[col], errors='coerce', format='ISO8601')
-                        df[col] = s.dt.strftime('%Y-%m-%d').where(s.notna(), '')
-                pending_orders_content = dash_table.DataTable(
+                    if col in df_ind.columns:
+                        s = pd.to_datetime(df_ind[col], errors='coerce', format='ISO8601')
+                        df_ind[col] = s.dt.strftime('%Y-%m-%d').where(s.notna(), '')
+
+                inv_count = max(0, len(inv_options) - 1)
+                mapped_header = f"Mapped Part ({inv_count})"
+
+                individual_table = dash_table.DataTable(
                     id='pending-orders-editable-table',
-                    data=df.to_dict('records'),
+                    data=df_ind.to_dict('records'),
                     columns=[
                         {"name": "ID", "id": "id", "editable": False},
                         {"name": "Part ID", "id": "part_id", "editable": True},
+                        {"name": mapped_header, "id": "mapped_part_id", "editable": True, "type": "text", "presentation": "dropdown"},
+                        {"name": "Match %", "id": "match_confidence", "editable": False, "type": "numeric"},
                         {"name": "Supplier ID", "id": "supplier_id", "editable": True},
                         {"name": "Supplier Name", "id": "supplier_name", "editable": True},
                         {"name": "Order Date", "id": "order_date", "editable": True, "type": "datetime"},
@@ -967,16 +1022,35 @@ def initialize_tab_content(active_tab):
                                 {'label': 'received', 'value': 'received'},
                                 {'label': 'cancelled', 'value': 'cancelled'},
                             ]
+                        },
+                        'mapped_part_id': {
+                            'options': inv_options
                         }
                     },
+                    dropdown_conditional=[
+                        {'if': {'column_id': 'mapped_part_id'}, 'options': inv_options}
+                    ],
+                    tooltip_header={'mapped_part_id': f"{len(inv_options)} options"},
+                    css=[
+                        {'selector': '.dash-spreadsheet td div', 'rule': 'display: block; overflow: visible; white-space: normal;'},
+                        {'selector': '.dash-dropdown .Select-menu-outer', 'rule': 'z-index: 2000;'}
+                    ],
                     style_table={'overflowX': 'auto'},
-                    style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                    style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px', 'overflow': 'visible'},
                     style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
                 )
-            else:
-                pending_orders_content = html.Div("Error loading pending orders", style={'color': 'red'})
+            # Build container comprising the toggle and the tables container
+            pending_orders_content = html.Div([
+                # Toggle is already rendered in the Pending Orders tab layout above
+                dcc.Store(id='pending-orders-raw-store', data=df_raw.to_dict('records')),
+                html.Div(id='pending-orders-view-container', children=[individual_table])
+            ])
+
         except Exception as e:
             pending_orders_content = html.Div(f"Error: {str(e)}", style={'color': 'red'})
+
+
+
 
     return bom_content, forecast_content, inventory_content, inventory_alerts_content, pending_orders_content
 
@@ -994,13 +1068,13 @@ def run_planning(n_clicks, start_date, end_date):
             # Convert date strings to datetime
             start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
             end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
-            
+
             # Call planning API
             response = requests.post(f"{API_BASE}/plan/run", params={
                 'start_date': start_dt.isoformat(),
                 'end_date': end_dt.isoformat()
             })
-            
+
             if response.status_code == 200:
                 # Store a timestamp to trigger updates
                 return html.Div([
@@ -1041,13 +1115,13 @@ def update_key_metrics(data, start_date, end_date):
             # Convert date strings to datetime
             start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
             end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
-            
+
             # Get metrics from API
             response = requests.get(f"{API_BASE}/metrics", params={
                 'start_date': start_dt.isoformat(),
                 'end_date': end_dt.isoformat()
             })
-            
+
             if response.status_code == 200:
                 metrics = response.json()
                 return dbc.Row([
@@ -1111,53 +1185,81 @@ def update_order_schedule(data, view_type, start_date, end_date):
             # Convert date strings to datetime
             start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
             end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
-            
+
             # Choose endpoint based on view type
             if view_type == "aggregated":
                 endpoint = f"{API_BASE}/orders/by-supplier"
             else:
                 endpoint = f"{API_BASE}/orders"
-            
+
             # Get orders from API
             response = requests.get(endpoint, params={
                 'start_date': start_dt.isoformat(),
                 'end_date': end_dt.isoformat()
             })
-            
+
             if response.status_code == 200:
                 orders = response.json()
                 if orders:
                     df = pd.DataFrame(orders)
                     df['order_date'] = pd.to_datetime(df['order_date']).dt.strftime('%Y-%m-%d')
                     df['payment_date'] = pd.to_datetime(df['payment_date']).dt.strftime('%Y-%m-%d')
+                    if 'eta_date' in df.columns:
+                        df['eta_date'] = pd.to_datetime(df['eta_date']).dt.strftime('%Y-%m-%d')
                     df['total_cost'] = df['total_cost'].apply(lambda x: f"${x:,.2f}")
                     # Dollar formatting for tariff/shipping columns if present
                     if 'total_tariff_amount' in df.columns:
                         df['total_tariff_amount'] = df['total_tariff_amount'].apply(lambda x: f"${x:,.2f}")
                     if 'total_shipping_cost' in df.columns:
                         df['total_shipping_cost'] = df['total_shipping_cost'].apply(lambda x: f"${x:,.2f}")
-                    
+
                     if view_type == "aggregated":
                         # Aggregated supplier view
                         # Remove the 'parts' field as it contains lists that DataTable can't handle
                         df_display = df.drop(columns=['parts'], errors='ignore')
-                        
+
+                        # Build an Export link per row to trigger Google Calendar export
+                        # Construct the API URL with query params per-row via markdown link
+                        base_api = f"{API_BASE}/calendar/export/by-supplier"
+                        def build_link(row):
+                            # Prefer supplier_id if present
+                            sid = row.get('supplier_id')
+                            sname = row.get('supplier_name')
+                            od = row.get('order_date')
+                            params = []
+                            params.append(f"start_date={start_dt.isoformat()}")
+                            params.append(f"end_date={end_dt.isoformat()}")
+                            if sid:
+                                params.append(f"supplier_id={sid}")
+                            elif sname:
+                                # URL encode spaces minimally
+                                params.append(f"supplier_name={requests.utils.quote(str(sname))}")
+                            if od:
+                                params.append(f"order_date={od}T00:00:00")
+                            params.append("as_html=true")
+                            return f"[Export to Calendar]({base_api}?{'&'.join(params)})"
+                        df_display['export'] = df_display.apply(build_link, axis=1)
+
                         return dash_table.DataTable(
                             data=df_display.to_dict('records'),
                             columns=[
                                 {"name": "Supplier", "id": "supplier_name"},
                                 {"name": "Order Date", "id": "order_date"},
+                                {"name": "ETA", "id": "eta_date"},
                                 {"name": "Parts Count", "id": "total_parts"},
                                 {"name": "Total Cost", "id": "total_cost"},
-                            {"name": "Tariffs", "id": "total_tariff_amount"},
-                            {"name": "Shipping", "id": "total_shipping_cost"},
+                                {"name": "Tariffs", "id": "total_tariff_amount"},
+                                {"name": "Shipping", "id": "total_shipping_cost"},
                                 {"name": "Payment Date", "id": "payment_date"},
                                 {"name": "Days to Order", "id": "days_until_order"},
-                                {"name": "Days to Payment", "id": "days_until_payment"}
+                                {"name": "Days to ETA", "id": "days_until_eta"},
+                                {"name": "Days to Payment", "id": "days_until_payment"},
+                                {"name": "Action", "id": "export", "presentation": "markdown"}
                             ],
                             style_table={'overflowX': 'auto'},
                             style_cell={'textAlign': 'left', 'padding': '10px'},
-                            style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
+                            style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
+                            markdown_options={"link_target": "_blank"}
                         )
                     else:
                         # Detailed part view
@@ -1166,11 +1268,11 @@ def update_order_schedule(data, view_type, start_date, end_date):
                             {"name": "Part ID", "id": "part_id"},
                             {"name": "Description", "id": "part_description"},
                         ]
-                        
+
                         # Add supplier column if data exists
                         if 'supplier_name' in df.columns:
                             columns.append({"name": "Supplier", "id": "supplier_name"})
-                        
+
                         columns.extend([
                             {"name": "Order Date", "id": "order_date"},
                             {"name": "Qty", "id": "qty"},
@@ -1181,9 +1283,11 @@ def update_order_schedule(data, view_type, start_date, end_date):
                             {"name": "Shipping $", "id": "shipping_cost_total"},
                             {"name": "Origin", "id": "country_of_origin"},
                             {"name": "Tariffs?", "id": "subject_to_tariffs"},
-                            {"name": "Payment Date", "id": "payment_date"}
+                            {"name": "Payment Date", "id": "payment_date"},
+                            {"name": "ETA", "id": "eta_date"},
+                            {"name": "Days to ETA", "id": "days_until_eta"}
                         ])
-                        
+
                         # Dollar formatting for detailed view
                         if 'tariff_amount' in df.columns:
                             df['tariff_amount'] = df['tariff_amount'].apply(lambda x: f"${x:,.2f}")
@@ -1257,32 +1361,32 @@ def update_order_summary(data, view_type, start_date, end_date):
             # Convert date strings to datetime
             start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
             end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
-            
+
             # Get both detailed and aggregated orders for comparison
             detailed_response = requests.get(f"{API_BASE}/orders", params={
                 'start_date': start_dt.isoformat(),
                 'end_date': end_dt.isoformat()
             })
-            
+
             aggregated_response = requests.get(f"{API_BASE}/orders/by-supplier", params={
                 'start_date': start_dt.isoformat(),
                 'end_date': end_dt.isoformat()
             })
-            
+
             if detailed_response.status_code == 200 and aggregated_response.status_code == 200:
                 detailed_orders = detailed_response.json()
                 aggregated_orders = aggregated_response.json()
-                
+
                 detailed_count = len(detailed_orders)
                 aggregated_count = len(aggregated_orders)
-                
+
                 # Calculate total costs
                 detailed_total = sum(order.get('total_cost', 0) for order in detailed_orders)
                 aggregated_total = sum(order.get('total_cost', 0) for order in aggregated_orders)
-                
+
                 # Calculate reduction percentage
                 reduction_pct = ((detailed_count - aggregated_count) / detailed_count * 100) if detailed_count > 0 else 0
-                
+
                 # Create summary cards
                 cards = dbc.Row([
                     dbc.Col([
@@ -1313,12 +1417,12 @@ def update_order_summary(data, view_type, start_date, end_date):
                         ], color="light", outline=True)
                     ], width=4)
                 ])
-                
+
                 return cards
-                
+
         except Exception as e:
             return html.Div(f"Error loading summary: {str(e)}", style={'color': 'red'})
-    
+
     return ""
 
 @app.callback(
@@ -1332,18 +1436,35 @@ def refresh_pending_orders(n_clicks):
         if response.status_code == 200:
             orders = response.json()
             df = pd.DataFrame(orders) if orders else pd.DataFrame(columns=[
-                'id','part_id','supplier_id','supplier_name','order_date','estimated_delivery_date','qty','unit_cost','payment_date','status','po_number','notes'
+                'id','part_id','supplier_id','supplier_name','order_date','estimated_delivery_date','qty','unit_cost','payment_date','status','po_number','notes','mapped_part_id','match_confidence'
             ])
             for col in ['order_date','estimated_delivery_date','payment_date','created_at','updated_at']:
                 if col in df.columns:
                     s = pd.to_datetime(df[col], errors='coerce', format='ISO8601')
                     df[col] = s.dt.strftime('%Y-%m-%d').where(s.notna(), '')
+
+            # Fetch inventory options for mapped_part_id dropdown
+            inv_resp = requests.get(f"{API_BASE}/inventory")
+            inv_options = []
+            if inv_resp.status_code == 200:
+                inv = inv_resp.json() or []
+                inv_options = [{'label': str(row.get('part_id')), 'value': str(row.get('part_id'))} for row in inv if row.get('part_id')]
+            if not inv_options:
+                proj = requests.get(f"{API_BASE}/inventory/projected")
+                if proj.status_code == 200:
+                    data = proj.json() or []
+                    ids = sorted({str(row.get('part_id')) for row in data if row.get('part_id')})
+                    inv_options = [{'label': pid, 'value': pid} for pid in ids]
+            inv_options = [{'label': '— Clear Mapping —', 'value': '__CLEAR__'}] + inv_options
+
             return dash_table.DataTable(
                 id='pending-orders-editable-table',
                 data=df.to_dict('records'),
                 columns=[
                     {"name": "ID", "id": "id", "editable": False},
                     {"name": "Part ID", "id": "part_id", "editable": True},
+                    {"name": f"Mapped Part ({max(0, len(inv_options)-1)})", "id": "mapped_part_id", "editable": True, "type": "text", "presentation": "dropdown"},
+                    {"name": "Match %", "id": "match_confidence", "editable": False, "type": "numeric"},
                     {"name": "Supplier ID", "id": "supplier_id", "editable": True},
                     {"name": "Supplier Name", "id": "supplier_name", "editable": True},
                     {"name": "Order Date", "id": "order_date", "editable": True, "type": "datetime"},
@@ -1365,10 +1486,21 @@ def refresh_pending_orders(n_clicks):
                             {'label': 'received', 'value': 'received'},
                             {'label': 'cancelled', 'value': 'cancelled'},
                         ]
+                    },
+                    'mapped_part_id': {
+                        'options': inv_options
                     }
                 },
+                dropdown_conditional=[
+                    {'if': {'column_id': 'mapped_part_id'}, 'options': inv_options}
+                ],
+                tooltip_header={'mapped_part_id': f"{len(inv_options)} options"},
+                css=[
+                    {'selector': '.dash-spreadsheet td div', 'rule': 'display: block; overflow: visible; white-space: normal;'},
+                    {'selector': '.dash-dropdown .Select-menu-outer', 'rule': 'z-index: 2000;'}
+                ],
                 style_table={'overflowX': 'auto'},
-                style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px'},
+                style_cell={'textAlign': 'left', 'padding': '10px', 'minWidth': '120px', 'overflow': 'visible'},
                 style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'}
             )
         else:
@@ -1406,7 +1538,7 @@ def handle_upload_pending_orders_pdf(contents, filename):
         return dbc.Alert(f"Error: {str(e)}", color="danger")
 
 @app.callback(
-    Output('pending-orders-save-status', 'children'),
+    Output('pending-orders-save-status', 'children', allow_duplicate=True),
     Input('save-pending-orders-btn', 'n_clicks'),
     State('pending-orders-editable-table', 'data'),
     prevent_initial_call=True
@@ -1430,7 +1562,9 @@ def save_pending_orders(n_clicks, table_data):
                 'payment_date': row.get('payment_date'),
                 'status': row.get('status') or 'pending',
                 'po_number': row.get('po_number'),
-                'notes': row.get('notes')
+                'notes': row.get('notes'),
+                'mapped_part_id': row.get('mapped_part_id') or None,
+                'match_confidence': int(row.get('match_confidence') or 0),
             }
             order_id = row.get('id')
             if order_id:
@@ -1455,6 +1589,86 @@ def save_pending_orders(n_clicks, table_data):
                     requests.delete(f"{API_BASE}/orders/pending/{oid}")
         except Exception:
             pass
+        return dbc.Alert(f"Saved {saved} pending orders", color="success", duration=3000)
+    except Exception as e:
+        return dbc.Alert(f"Error: {str(e)}", color="danger", duration=5000)
+
+
+@app.callback(
+    Output('pending-orders-save-status', 'children', allow_duplicate=True),
+    Input('pending-orders-editable-table', 'data_timestamp'),
+    State('pending-orders-editable-table', 'data'),
+    State('pending-orders-editable-table', 'active_cell'),
+    prevent_initial_call=True
+)
+def persist_mapped_part_on_change(ts, rows, active_cell):
+    try:
+        # Only react to edits in the Mapped Part column
+        if not rows or not active_cell or active_cell.get('column_id') != 'mapped_part_id':
+            return no_update
+        i = active_cell.get('row')
+        if i is None or i >= len(rows):
+            return no_update
+        row = rows[i]
+        oid = row.get('id')
+        mapped = row.get('mapped_part_id')
+        if oid is None:
+            return no_update
+        # Interpret clear sentinel
+        if mapped == '__CLEAR__':
+            mapped = None
+        # Normalize helper converts "" -> None
+        def nz(val):
+            return None if val in (None, '', 'null', 'None') else val
+        payload = {
+            'part_id': row.get('part_id',''),
+            'supplier_id': nz(row.get('supplier_id')),
+            'supplier_name': nz(row.get('supplier_name')),
+            'order_date': nz(row.get('order_date')),
+            'estimated_delivery_date': nz(row.get('estimated_delivery_date')),
+            'qty': int(row.get('qty', 0) or 0),
+            'unit_cost': float(row.get('unit_cost', 0) or 0.0),
+            'payment_date': nz(row.get('payment_date')),
+            'status': (row.get('status') or 'pending'),
+            'po_number': nz(row.get('po_number')),
+            'notes': nz(row.get('notes')),
+        }
+        # If user selected Clear Mapping, set to null; else set mapped and confidence 100
+        if mapped:
+            payload['mapped_part_id'] = mapped
+            payload['match_confidence'] = 100
+        else:
+            payload['mapped_part_id'] = None
+            payload['match_confidence'] = 0
+        r = requests.put(f"{API_BASE}/orders/pending/{oid}", json=payload)
+        if r.status_code in [200,201]:
+            return dbc.Alert(f"Updated mapping for order {oid}", color="success", duration=2000)
+        else:
+            return dbc.Alert(f"Update failed: {r.status_code} {r.text}", color="danger", duration=4000)
+    except Exception as e:
+        return dbc.Alert(f"Error updating mappings: {str(e)}", color="danger", duration=4000)
+
+
+@app.callback(
+    Output('pending-orders-remap-status', 'children'),
+    Input('remap-pending-orders-btn', 'n_clicks'),
+    prevent_initial_call=True
+)
+def remap_pending_orders_btn(n_clicks):
+    try:
+        r = requests.post(f"{API_BASE}/orders/pending/remap")
+        if r.status_code == 200:
+            data = r.json()
+            updated = data.get('updated', 0)
+            count = data.get('count', 0)
+            return dbc.Alert(f"Re-mapped {updated} of {count} orders", color="warning", duration=3000)
+        else:
+            return dbc.Alert(f"Remap failed: {r.status_code} {r.text}", color="danger", duration=5000)
+    except Exception as e:
+        return dbc.Alert(f"Error: {str(e)}", color="danger", duration=5000)
+
+        # End save handler
+        # (note: delete of missing rows already performed above)
         return dbc.Alert(f"Saved {saved} pending orders", color="success", duration=3000)
     except Exception as e:
         return dbc.Alert(f"Error: {str(e)}", color="danger", duration=5000)
@@ -1485,21 +1699,21 @@ def update_cash_flow_chart(data, start_date, end_date):
             # Convert date strings to datetime
             start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
             end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
-            
+
             # Get cash flow from API
             response = requests.get(f"{API_BASE}/cashflow", params={
                 'start_date': start_dt.isoformat(),
                 'end_date': end_dt.isoformat()
             })
-            
+
             if response.status_code == 200:
                 cash_flow = response.json()
                 if cash_flow:
                     df = pd.DataFrame(cash_flow)
                     df['date'] = pd.to_datetime(df['date'])
-                    
+
                     fig = go.Figure()
-                    
+
                     # Add total outflow (cash out)
                     fig.add_trace(go.Scatter(
                         x=df['date'],
@@ -1509,7 +1723,7 @@ def update_cash_flow_chart(data, start_date, end_date):
                         line=dict(color='#dc3545', width=3),
                         marker=dict(size=8, color='#dc3545')
                     ))
-                    
+
                     # Add cumulative cash flow
                     fig.add_trace(go.Scatter(
                         x=df['date'],
@@ -1519,7 +1733,7 @@ def update_cash_flow_chart(data, start_date, end_date):
                         line=dict(color='#6f42c1', width=3),
                         marker=dict(size=8, color='#6f42c1')
                     ))
-                    
+
                     # Add net cash flow
                     fig.add_trace(go.Scatter(
                         x=df['date'],
@@ -1529,7 +1743,7 @@ def update_cash_flow_chart(data, start_date, end_date):
                         line=dict(color='#fd7e14', width=3),
                         marker=dict(size=8, color='#fd7e14')
                     ))
-                    
+
                     fig.update_layout(
                         title="Cash Flow Projection",
                         xaxis_title="Date",
@@ -1556,7 +1770,7 @@ def update_cash_flow_chart(data, start_date, end_date):
                             x=1
                         )
                     )
-                    
+
                     return fig
                 else:
                     # Return empty chart with message
@@ -1624,13 +1838,13 @@ def update_bom_table(n_clicks):
             bom_data = response.json()
             if bom_data:
                 df = pd.DataFrame(bom_data)
-                
+
                 # Convert datetime columns to strings for display
                 if 'created_at' in df.columns:
                     df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
                 if 'updated_at' in df.columns:
                     df['updated_at'] = pd.to_datetime(df['updated_at']).dt.strftime('%Y-%m-%d %H:%M')
-                
+
                 return dash_table.DataTable(
                     id='bom-data-editable-table',
                     data=df.to_dict('records'),
@@ -1689,10 +1903,10 @@ def update_bom_table(n_clicks):
 def save_bom_data(n_clicks, table_data):
     if not n_clicks:
         return ""
-    
+
     if not table_data:
         return dbc.Alert("No data to save", color="warning", duration=3000)
-    
+
     try:
         # Prepare data for API
         bom_data = []
@@ -1718,10 +1932,10 @@ def save_bom_data(n_clicks, table_data):
                 'subject_to_tariffs': row.get('subject_to_tariffs', 'No')
             }
             bom_data.append(bom_record)
-        
+
         # Save to API
         response = requests.put(f"{API_BASE}/bom/bulk", json=bom_data)
-        
+
         if response.status_code == 200:
             result = response.json()
             return dbc.Alert(result.get('message', 'BOM data saved successfully!'), color="success", duration=3000)
@@ -1743,7 +1957,7 @@ def update_forecast_table(n_clicks):
             forecast_data = response.json()
             if forecast_data:
                 df = pd.DataFrame(forecast_data)
-                
+
                 # Convert datetime columns to strings for display
                 if 'period_start' in df.columns:
                     df['period_start'] = pd.to_datetime(df['period_start']).dt.strftime('%Y-%m-%d')
@@ -1751,7 +1965,7 @@ def update_forecast_table(n_clicks):
                     df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
                 if 'updated_at' in df.columns:
                     df['updated_at'] = pd.to_datetime(df['updated_at']).dt.strftime('%Y-%m-%d %H:%M')
-                
+
                 return dash_table.DataTable(
                     id='forecast-data-editable-table',
                     data=df.to_dict('records'),
@@ -1789,10 +2003,10 @@ def update_forecast_table(n_clicks):
 def save_forecast_data(n_clicks, table_data):
     if not n_clicks:
         return ""
-    
+
     if not table_data:
         return dbc.Alert("No data to save", color="warning", duration=3000)
-    
+
     try:
         # Prepare data for API
         forecast_data = []
@@ -1805,10 +2019,10 @@ def save_forecast_data(n_clicks, table_data):
                 'units': int(row.get('units', 0)) if row.get('units') else 0
             }
             forecast_data.append(forecast_record)
-        
+
         # Save to API
         response = requests.put(f"{API_BASE}/forecast/bulk", json=forecast_data)
-        
+
         if response.status_code == 200:
             result = response.json()
             return dbc.Alert(result.get('message', 'Forecast data saved successfully!'), color="success", duration=3000)
@@ -1830,10 +2044,10 @@ def save_forecast_data(n_clicks, table_data):
 def save_inventory_data(n_clicks, table_data):
     if not n_clicks:
         return ""
-    
+
     if not table_data:
         return dbc.Alert("No data to save", color="warning", duration=3000)
-    
+
     try:
         # Prepare data for API
         inventory_data = []
@@ -1842,7 +2056,7 @@ def save_inventory_data(n_clicks, table_data):
             current_stock = int(row.get('current_stock', 0)) if row.get('current_stock') else 0
             unit_cost = float(row.get('unit_cost', 0)) if row.get('unit_cost') else 0.0
             total_value = current_stock * unit_cost
-            
+
             inventory_record = {
                 'part_id': row.get('part_id', ''),
                 'part_name': row.get('part_name', ''),
@@ -1858,7 +2072,7 @@ def save_inventory_data(n_clicks, table_data):
                 'notes': row.get('notes')
             }
             inventory_data.append(inventory_record)
-        
+
         # Save each inventory item via API (since we don't have bulk update endpoint yet)
         updated_count = 0
         for item in inventory_data:
@@ -1869,10 +2083,10 @@ def save_inventory_data(n_clicks, table_data):
                 if response.status_code == 404:
                     # If not found, create new record
                     response = requests.post(f"{API_BASE}/inventory", json=item)
-                
+
                 if response.status_code in [200, 201]:
                     updated_count += 1
-        
+
         return dbc.Alert(f"Successfully saved {updated_count} inventory records!", color="success", duration=3000)
     except Exception as e:
         return dbc.Alert(f"Error: {str(e)}", color="danger", duration=5000)
@@ -1904,7 +2118,7 @@ def export_orders_csv(n_clicks, start_date, end_date, view_type):
             # Convert date strings to datetime
             start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
             end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
-            
+
             # Choose endpoint and filename based on view type
             if view_type == "aggregated":
                 endpoint = f"{API_BASE}/export/orders-by-supplier"
@@ -1912,13 +2126,13 @@ def export_orders_csv(n_clicks, start_date, end_date, view_type):
             else:
                 endpoint = f"{API_BASE}/export/orders"
                 filename = "detailed_order_schedule.csv"
-            
+
             # Get data from API
             response = requests.get(endpoint, params={
                 'start_date': start_dt.isoformat(),
                 'end_date': end_dt.isoformat()
             })
-            
+
             if response.status_code == 200:
                 return dict(content=response.text, filename=filename, type="text/csv")
         except Exception as e:
@@ -2033,13 +2247,13 @@ def export_cashflow_csv(n_clicks, start_date, end_date):
             # Convert date strings to datetime
             start_dt = datetime.fromisoformat(start_date) if start_date else datetime(2025, 1, 1)
             end_dt = datetime.fromisoformat(end_date) if end_date else datetime(2025, 12, 31)
-            
+
             # Get data from API
             response = requests.get(f"{API_BASE}/export/cashflow", params={
                 'start_date': start_dt.isoformat(),
                 'end_date': end_dt.isoformat()
             })
-            
+
             if response.status_code == 200:
                 return dict(content=response.text, filename="cashflow_projection.csv", type="text/csv")
         except Exception as e:
@@ -2056,7 +2270,7 @@ def export_bom_csv(n_clicks):
         try:
             # Get data from API
             response = requests.get(f"{API_BASE}/export/bom")
-            
+
             if response.status_code == 200:
                 return dict(content=response.text, filename="bom_data.csv", type="text/csv")
         except Exception as e:
@@ -2073,7 +2287,7 @@ def export_forecast_csv(n_clicks):
         try:
             # Get data from API
             response = requests.get(f"{API_BASE}/export/forecast")
-            
+
             if response.status_code == 200:
                 return dict(content=response.text, filename="forecast_data.csv", type="text/csv")
         except Exception as e:
@@ -2090,12 +2304,21 @@ def export_inventory_csv(n_clicks):
         try:
             # Get data from API
             response = requests.get(f"{API_BASE}/export/inventory")
-            
+
             if response.status_code == 200:
+
+
                 return dict(content=response.text, filename="inventory_data.csv", type="text/csv")
         except Exception as e:
             print(f"Error exporting inventory: {e}")
     return None
+# Register external callbacks that use allow_duplicate outputs
+try:
+    from app.components.pending_orders_callbacks import register_callbacks as register_pending_orders_callbacks
+    register_pending_orders_callbacks(app, API_BASE)
+except Exception:
+    pass
+
 
 if __name__ == '__main__':
     app.run_server(debug=True, port=8050)
