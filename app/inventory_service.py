@@ -90,45 +90,56 @@ class InventoryService:
         return projected_items
 
     def _get_pending_qty_map(self, threshold: int = 80) -> Tuple[Dict[str, int], Dict[str, Optional[datetime]]]:
-        """Build a mapping from inventory part_id -> aggregated pending qty using fuzzy matching.
+        """Build a mapping from inventory part_id -> aggregated pending qty.
+        Strategy: prefer stored mapping (mapped_part_id) and aliases; fallback to fuzzy.
         Returns a tuple of (qty_map, earliest_eta_map).
         """
+        from app.matching import build_inventory_index, map_order_to_part
+
         # Gather data
         inventory_items = self.db.query(Inventory).all()
-        orders = self.db.query(Order).filter(Order.status.in_(["pending", "ordered"])) .all()
+        orders = (
+            self.db.query(Order)
+            .filter(Order.status.in_(["pending", "ordered"]))
+            .all()
+        )
         qty_map: Dict[str, int] = {inv.part_id: 0 for inv in inventory_items}
         eta_map: Dict[str, Optional[datetime]] = {}
 
         if not orders:
             return qty_map, eta_map
 
-        # Prepare strings for matching: prefer part_id; fallback to part_name if available
-        try:
-            from rapidfuzz import fuzz, process
-            inv_keys = []
-            key_to_part = {}
-            for inv in inventory_items:
-                keys = [inv.part_id]
-                if inv.part_name and inv.part_name not in keys:
-                    keys.append(inv.part_name)
-                for k in keys:
-                    inv_keys.append(k)
-                    key_to_part[k] = inv.part_id
+        inv_index = build_inventory_index(self.db)
 
-            for o in orders:
-                candidate = o.part_id or ""
-                # try best among both IDs and names
-                best = process.extractOne(candidate, inv_keys, scorer=fuzz.token_set_ratio)
-                if best and best[1] >= threshold:
-                    mapped_part = key_to_part[best[0]]
-                    qty_map[mapped_part] = qty_map.get(mapped_part, 0) + int(o.qty or 0)
+        # First pass: use stored mappings when available
+        remaining_orders: list[Order] = []
+        for o in orders:
+            canonical = o.mapped_part_id
+            if canonical:
+                if canonical in qty_map:
+                    qty_map[canonical] = qty_map.get(canonical, 0) + int(o.qty or 0)
                     eta = o.estimated_delivery_date
                     if eta:
-                        prev = eta_map.get(mapped_part)
-                        eta_map[mapped_part] = min(prev, eta) if prev else eta
-        except Exception:
-            # Fallback: exact match on part_id only
-            for o in orders:
+                        prev = eta_map.get(canonical)
+                        eta_map[canonical] = min(prev, eta) if prev else eta
+                else:
+                    # mapped to non-existing inventory id; keep for fallback
+                    remaining_orders.append(o)
+            else:
+                remaining_orders.append(o)
+
+        # Second pass: map remaining orders using alias-first fuzzy logic
+        for o in remaining_orders:
+            try:
+                mapped, conf = map_order_to_part(self.db, o, inv_index, high_thresh=threshold, low_thresh=max(60, threshold - 10))
+                if mapped and mapped in qty_map:
+                    qty_map[mapped] = qty_map.get(mapped, 0) + int(o.qty or 0)
+                    eta = o.estimated_delivery_date
+                    if eta:
+                        prev = eta_map.get(mapped)
+                        eta_map[mapped] = min(prev, eta) if prev else eta
+            except Exception:
+                # As a final fallback, exact match
                 if o.part_id in qty_map:
                     qty_map[o.part_id] += int(o.qty or 0)
                     eta = o.estimated_delivery_date

@@ -7,20 +7,20 @@ Base = declarative_base()
 
 class Product(Base):
     __tablename__ = "products"
-    
+
     sku_id = Column(String(50), primary_key=True)
     name = Column(String(200), nullable=False)
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships (disabled to avoid foreign key constraint issues)
     # bom_items = relationship("BOM")
     # forecasts = relationship("Forecast")
 
 class Part(Base):
     __tablename__ = "parts"
-    
+
     part_id = Column(String(50), primary_key=True)
     part_name = Column(String(200), nullable=False)
     supplier_id = Column(String(50), nullable=True)  # Removed foreign key constraint
@@ -30,7 +30,7 @@ class Part(Base):
     safety_stock_pct = Column(Float, default=0.1)  # 10% default safety stock
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships (without strict foreign key constraints)
     # supplier = relationship("Supplier", back_populates="parts")
     # bom_items = relationship("BOM", back_populates="part")
@@ -38,20 +38,20 @@ class Part(Base):
 
 class Supplier(Base):
     __tablename__ = "suppliers"
-    
+
     supplier_id = Column(String(50), primary_key=True)
     name = Column(String(200), nullable=False)
     ap_terms_days = Column(Integer, default=30)  # Net 30 default
     contact_email = Column(String(200))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships (disabled to avoid foreign key constraint issues)
     # parts = relationship("Part")
 
 class BOM(Base):
     __tablename__ = "bom"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(String(50), index=True)  # Remove foreign key constraint temporarily
     part_id = Column(String(50), index=True)     # Remove foreign key constraint temporarily
@@ -76,43 +76,43 @@ class BOM(Base):
     subject_to_tariffs = Column(String, nullable=True, default="No")  # Whether part is subject to tariffs (Yes/No)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships (without strict foreign key constraints)
     # product = relationship("Product", back_populates="bom_items")
     # part = relationship("Part", back_populates="bom_items")
 
 class Forecast(Base):
     __tablename__ = "forecasts"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     system_sn = Column(String(50), nullable=False)  # Changed from sku_id to system_sn
     installation_date = Column(DateTime, nullable=False)  # Changed from period_start to installation_date
     units = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships (without strict foreign key constraints)
     # product = relationship("Product", back_populates="forecasts")
 
 class LeadTime(Base):
     __tablename__ = "lead_times"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     part_id = Column(String(50), nullable=False)  # Removed foreign key constraint
     days = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships (disabled to avoid foreign key constraint issues)
     # part = relationship("Part")
 
 class Order(Base):
     __tablename__ = "orders"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
-    part_id = Column(String(50), nullable=False)  # Removed foreign key constraint
-    supplier_id = Column(String(50), nullable=True)  # Added supplier_id for aggregation
-    supplier_name = Column(String(200), nullable=True)  # Added supplier_name for display
+    part_id = Column(String(50), nullable=False)  # Vendor-provided or extracted part identifier
+    supplier_id = Column(String(50), nullable=True)  # For aggregation
+    supplier_name = Column(String(200), nullable=True)  # For display and supplier-scoped matching
     order_date = Column(DateTime, nullable=False)
     estimated_delivery_date = Column(DateTime, nullable=True)
     qty = Column(Integer, nullable=False)
@@ -121,15 +121,18 @@ class Order(Base):
     status = Column(String(20), default="pending")  # pending, ordered, received, cancelled
     po_number = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
+    # Mapping fields (optional)
+    mapped_part_id = Column(String(50), nullable=True)  # Canonical inventory part_id when mapped
+    match_confidence = Column(Integer, nullable=True)   # 0-100 confidence score
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships (disabled to avoid foreign key constraint issues)
     # part = relationship("Part")
 
 class Inventory(Base):
     __tablename__ = "inventory"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     part_id = Column(String(50), nullable=False, unique=True, index=True)
     part_name = Column(String(200), nullable=False)
@@ -147,7 +150,20 @@ class Inventory(Base):
     hts_code = Column(String, nullable=True)  # Harmonized Tariff Schedule code
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+
+class PartAlias(Base):
+    __tablename__ = "part_aliases"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    supplier_name = Column(String(200), nullable=True, index=True)
+    vendor_part_id = Column(String(200), nullable=False, index=True)
+    vendor_desc = Column(Text, nullable=True)
+    canonical_part_id = Column(String(50), nullable=False, index=True)
+    confidence = Column(Integer, default=100)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     # Relationships (disabled to avoid foreign key constraint issues)
     # part = relationship("Part")
 

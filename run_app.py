@@ -39,7 +39,8 @@ def main():
     python_executable = next((p for p in candidates if os.path.exists(p)), sys.executable)
 
     backend_command = [python_executable, 'main.py']
-    frontend_command = [python_executable, 'app/dashboard.py']
+    # Run dashboard as a module so "from app..." imports work when executed from project root
+    frontend_command = [python_executable, '-m', 'app.dashboard']
 
     print("PartXplorer - Starting both backend and frontend servers...")
     print(f"Using Python from: {python_executable}")

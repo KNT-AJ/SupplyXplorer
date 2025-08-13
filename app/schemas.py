@@ -83,6 +83,9 @@ class PendingOrderBase(BaseModel):
     status: str = Field("pending", description="pending|ordered|received|cancelled")
     po_number: Optional[str] = Field(None, description="Purchase order number")
     notes: Optional[str] = Field(None, description="Notes")
+    # Mapping (read-only in responses)
+    mapped_part_id: Optional[str] = Field(None, description="Canonical inventory part_id if mapped")
+    match_confidence: Optional[int] = Field(None, description="0-100 confidence score of mapping")
 
 # Create schemas
 class ProductCreate(ProductBase):
@@ -271,11 +274,15 @@ class OrderSchedule(BaseModel):
     order_date: datetime
     qty: int
     payment_date: datetime
+    # Estimated arrival date (ETA) at our facility)
+    eta_date: datetime
     unit_cost: float
     total_cost: float
     status: str = "planned"
     days_until_order: int
     days_until_payment: int
+    # Days until ETA
+    days_until_eta: int
     # Tariff and logistics detail
     country_of_origin: Optional[str] = None
     subject_to_tariffs: Optional[str] = "No"
@@ -291,11 +298,15 @@ class SupplierOrderSummary(BaseModel):
     supplier_name: Optional[str] = None
     order_date: datetime
     payment_date: datetime
+    # Estimated arrival date (latest ETA among grouped orders)
+    eta_date: datetime
     total_parts: int
     total_cost: float
     parts: List[str]  # List of part names
     days_until_order: int
     days_until_payment: int
+    # Days until ETA (based on eta_date)
+    days_until_eta: int
     # Aggregated tariff/logistics
     total_tariff_amount: float = 0.0
     total_shipping_cost: float = 0.0

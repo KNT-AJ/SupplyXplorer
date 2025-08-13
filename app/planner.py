@@ -249,6 +249,8 @@ class SupplyPlanner:
 
                 # Recompute order date using possibly updated shipping lead time
                 order_date = need_date - timedelta(days=(manufacturing_lead_time + effective_shipping_lead_time))
+                # ETA is when goods arrive to us: order date + manufacturing + shipping
+                eta_date = order_date + timedelta(days=(manufacturing_lead_time + effective_shipping_lead_time))
                 # Payment date = order date + AP terms
                 ap_terms = bom_item.ap_terms or 30
                 payment_date = order_date + timedelta(days=ap_terms)
@@ -279,12 +281,13 @@ class SupplyPlanner:
                     importing_country=DEFAULT_IMPORTING_COUNTRY,
                     entry_date=None
                 )
-                
-                # Calculate days until order/payment
+
+                # Calculate days until order/payment/eta
                 now = datetime.now()
                 days_until_order = (order_date - now).days
                 days_until_payment = (payment_date - now).days
-                
+                days_until_eta = (eta_date - now).days
+
                 order_schedule = OrderSchedule(
                     part_id=part_id,
                     part_name=bom_item.part_name,
@@ -294,10 +297,12 @@ class SupplyPlanner:
                     order_date=order_date,
                     qty=int(order_qty),
                     payment_date=payment_date,
+                    eta_date=eta_date,
                     unit_cost=bom_item.unit_cost,
                     total_cost=cost_breakdown['total_cost'],
                     days_until_order=days_until_order,
                     days_until_payment=days_until_payment,
+                    days_until_eta=days_until_eta,
                     status="pending",
                     country_of_origin=country_of_origin,
                     subject_to_tariffs=subject_to_tariffs,
@@ -333,47 +338,54 @@ class SupplyPlanner:
                     'supplier_name': order.supplier_name or "Unknown Supplier",
                     'order_date': order.order_date,
                     'payment_date': order.payment_date,  # Will be updated to latest payment date
+                    'eta_date': order.eta_date,  # Will be updated to latest ETA in group
                     'orders': [],
                     'total_cost': 0.0
                 }
-            
+
             supplier_groups[group_key]['orders'].append(order)
             supplier_groups[group_key]['total_cost'] += order.total_cost
-            
+
             # Update payment date to the latest payment date in the group
             if order.payment_date > supplier_groups[group_key]['payment_date']:
                 supplier_groups[group_key]['payment_date'] = order.payment_date
-        
+            # Update eta_date to the latest ETA in the group (conservative consolidation)
+            if order.eta_date > supplier_groups[group_key]['eta_date']:
+                supplier_groups[group_key]['eta_date'] = order.eta_date
+
         # Convert to SupplierOrderSummary objects
         supplier_summaries = []
         now = datetime.now()
-        
+
         for (supplier_key, order_date), group_data in supplier_groups.items():
             parts_list = [f"{order.part_name} (qty: {order.qty})" for order in group_data['orders']]
             days_until_order = (group_data['order_date'] - now).days
             days_until_payment = (group_data['payment_date'] - now).days
+            days_until_eta = (group_data['eta_date'] - now).days
             total_tariff_amount = sum(getattr(order, 'tariff_amount', 0.0) for order in group_data['orders'])
             total_shipping_cost = sum(getattr(order, 'shipping_cost_total', 0.0) for order in group_data['orders'])
-            
+
             summary = SupplierOrderSummary(
                 supplier_id=group_data['supplier_id'],
                 supplier_name=group_data['supplier_name'],
                 order_date=group_data['order_date'],
                 payment_date=group_data['payment_date'],
+                eta_date=group_data['eta_date'],
                 total_parts=len(group_data['orders']),
                 total_cost=group_data['total_cost'],
                 parts=parts_list,
                 days_until_order=days_until_order,
                 days_until_payment=days_until_payment,
+                days_until_eta=days_until_eta,
                 total_tariff_amount=total_tariff_amount,
                 total_shipping_cost=total_shipping_cost
             )
-            
+
             supplier_summaries.append(summary)
-        
+
         # Sort by order date
         supplier_summaries.sort(key=lambda x: x.order_date)
-        
+
         return supplier_summaries
     
     def generate_cash_flow_projection(self, order_schedules: List[OrderSchedule], 
@@ -422,10 +434,12 @@ class SupplyPlanner:
         
         now = datetime.now()
         
-        # Orders in next 30/60 days
-        orders_30d = [o for o in order_schedules if 0 <= o.days_until_order <= 30]
-        orders_60d = [o for o in order_schedules if 0 <= o.days_until_order <= 60]
-        
+        # Orders in next 30/60 days (aggregate by unique supplier)
+        def _supplier_key(o: OrderSchedule) -> str:
+            return o.supplier_id or o.supplier_name or "UNKNOWN"
+        suppliers_30d = {_supplier_key(o) for o in order_schedules if 0 <= o.days_until_order <= 30}
+        suppliers_60d = {_supplier_key(o) for o in order_schedules if 0 <= o.days_until_order <= 60}
+
         # Cash out in next 90 days and tariff spend
         cash_out_90d = 0.0
         tariff_spend_90d = 0.0
@@ -451,8 +465,8 @@ class SupplyPlanner:
         total_suppliers = len(suppliers)
         
         return KeyMetrics(
-            orders_next_30d=len(orders_30d),
-            orders_next_60d=len(orders_60d),
+            orders_next_30d=len(suppliers_30d),
+            orders_next_60d=len(suppliers_60d),
             cash_out_90d=cash_out_90d,
             largest_purchase=largest_purchase,
             total_parts=total_parts,

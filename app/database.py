@@ -56,6 +56,10 @@ def run_schema_upgrades():
         ensure_column('orders', 'status', 'status TEXT DEFAULT "pending"')
         ensure_column('orders', 'po_number', 'po_number TEXT')
         ensure_column('orders', 'notes', 'notes TEXT')
+        # New mapping-related columns
+        ensure_column('orders', 'mapped_part_id', 'mapped_part_id TEXT')
+        ensure_column('orders', 'match_confidence', 'match_confidence INTEGER DEFAULT 0')
+        # Alias table is created by SQLAlchemy metadata.create_all elsewhere; here we only add columns.
         conn.commit()
     except Exception:
         pass
